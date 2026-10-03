@@ -5,7 +5,54 @@ from datetime import datetime, timedelta
 import itertools
 
 # Configuration visuelle du site
-st.set_page_config(page_title="Oracle Cards Bot", page_icon="🔮", layout="centered")
+st.set_page_config(page_title="Oracle Cards Bot - Sécurisé", page_icon="🔮", layout="centered")
+
+# ==========================================
+# 🔑 ZONE DE CONTRÔLE DES UTILISATEURS (Gestion des accès)
+# ==========================================
+# Vous pouvez modifier les identifiants et les mots de passe ici à tout moment.
+UTILISATEURS_AUTORISES = {
+    "admin": "oracle2026",    # Votre compte personnel
+    "ami1": "niger77",       # Compte pour votre premier ami
+    "ami2": "cards88"        # Compte pour votre deuxième ami
+}
+
+# Initialisation de la session
+if "connecte" not in st.session_state:
+    st.session_state["connecte"] = False
+if "username" not in st.session_state:
+    st.session_state["username"] = ""
+
+# Interface de connexion verrouillée
+if not st.session_state["connecte"]:
+    st.title("🔒 Accès Sécurisé - Oracle Bot")
+    st.markdown("Veuillez entrer vos identifiants personnels pour accéder au bot.")
+    
+    identifiant = st.text_input("Identifiant utilisateur")
+    mot_de_passe = st.text_input("Mot de passe", type="password")
+    
+    if st.button("Se connecter"):
+        if identifiant in UTILISATEURS_AUTORISES and UTILISATEURS_AUTORISES[identifiant] == mot_de_passe:
+            st.session_state["connecte"] = True
+            st.session_state["username"] = identifiant
+            st.success("Connexion réussie !")
+            st.rerun()
+        else:
+            st.error("Identifiant ou mot de passe incorrect. Accès refusé.")
+    st.stop()
+
+# ==========================================
+# 🎮 LOGIQUE DE L'APPLICATION (Une fois connecté)
+# ==========================================
+
+col_user, col_logout = st.columns([2, 1])
+with col_user:
+    st.write(f"👤 Connecté en tant que : **{st.session_state['username']}**")
+with col_logout:
+    if st.button("Déconnexion"):
+        st.session_state["connecte"] = False
+        st.session_state["username"] = ""
+        st.rerun()
 
 TABLE_EXTRACTION = {
     1: 8, 2: 6, 3: 1, 4: 3, 5: 7, 6: 6, 7: 2, 8: 4, 9: 6, 10: 7,
