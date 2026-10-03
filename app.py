@@ -18,10 +18,14 @@ UTILISATEURS_AUTORISES = {
 for i in range(1, 11):
     UTILISATEURS_AUTORISES[f"ami{i}"] = f"ora{i}nx"
 
+# Fonction pour obtenir l'heure exacte du Niger (UTC+1)
+def obtenir_heure_niger():
+    return datetime.utcnow() + timedelta(hours=1)
+
 # Système de stockage des connexions en mémoire vive
 if "historique_connexions" not in st.session_state:
     st.session_state["historique_connexions"] = [
-        {"heure": datetime.now().strftime("%H:%M:%S"), "user": "System", "action": "Démarrage du serveur"}
+        {"heure": obtenir_heure_niger().strftime("%H:%M:%S"), "user": "System", "action": "Démarrage du serveur"}
     ]
 
 # Initialisation de la session de connexion
@@ -45,7 +49,7 @@ if not st.session_state["connecte"]:
             
             # Enregistrement dans l'historique
             nouvelle_connexion = {
-                "heure": datetime.now().strftime("%H:%M:%S"),
+                "heure": obtenir_heure_niger().strftime("%H:%M:%S"),
                 "user": identifiant,
                 "action": "Connexion réussie"
             }
@@ -74,7 +78,7 @@ if st.session_state["username"] == "admin":
         for log in reversed(st.session_state["historique_connexions"]):
             st.caption(f"[{log['heure']}] **{log['user']}** : {log['action']}")
 
-# Bouton de déconnexion (Correction effectuée ici avec [2] pour spécifier 2 colonnes)
+# Bouton de déconnexion
 col_user, col_logout = st.columns(2)
 with col_user:
     st.write(f"👤 Connecté en tant que : **{st.session_state['username']}**")
@@ -102,16 +106,17 @@ SUITE_CHIFFRES = "86137624679515113265066332312434103223614551048051501624000000
 def determiner_carte_par_ordre_avec_jour(index_jeu, date_actuelle):
     if not SUITE_CHIFFRES or index_jeu <= 0:
         return None
-    enseignes = ["Pique ♠️", "Trèfle ♣️", "Carreau ♦️", "Cœur ♥️"]
+    enseignes = ["Pique", "Trèfle", "Carreau", "Cœur"]
     decalage_jour = date_actuelle.day
     index_chiffre = (index_jeu - 1 + decalage_jour) % len(SUITE_CHIFFRES)
     chiffre_extrait = SUITE_CHIFFRES[index_chiffre]
     enseigne_actuelle = enseignes[index_chiffre % 4]
     valeur_carte = "10" if chiffre_extrait == '0' else chiffre_extrait
-    return f"{valeur_carte} de {enseigne_actuelle}"
+    # Format simplifié demandé : "Valeur Enseigne"
+    return f"{valeur_carte} {enseigne_actuelle}"
 
 def obtenir_prochain_jeu_divisible_par_4():
-    maintenant = datetime.now()
+    maintenant = obtenir_heure_niger()
     debut_jeux = maintenant.replace(hour=1, minute=0, second=0, microsecond=0)
     if maintenant < debut_jeux:
         debut_jeux -= timedelta(days=1)
@@ -125,17 +130,12 @@ def obtenir_prochain_jeu_divisible_par_4():
         prochain_tour = 4
     return prochain_tour, heure_depart_jeu
 
-st.title("🔮 Oracle Cards - Anticipateur Automatique")
+# Affichage de l'horloge synchronisée du Niger
+maintenant_niger = obtenir_heure_niger()
+st.write(f"## ⏰ Horloge Niger : {maintenant_niger.strftime('%H:%M:%S')}")
 st.markdown("---")
 
-maintenant = datetime.now()
 prochain_tour, heure_depart_jeu = obtenir_prochain_jeu_divisible_par_4()
-
-col1, col2 = st.columns(2)
-with col1:
-    st.metric(label="📅 Jour du mois actif", value=f"Jour {maintenant.day}")
-with col2:
-    st.metric(label="⏰ Prochain Tour à", value=heure_depart_jeu.strftime("%H:%M:%S"))
 
 st.info(f"🎮 **Tour calculé en préparation : {prochain_tour}**")
 
@@ -157,7 +157,7 @@ cartes_trouvees = []
 for position_grille in sorted(positions_traitees):
     if position_grille in TABLE_EXTRACTION:
         index_cible = TABLE_EXTRACTION[position_grille]
-        carte = determiner_carte_par_ordre_avec_jour(index_cible, maintenant)
+        carte = determiner_carte_par_ordre_avec_jour(index_cible, maintenant_niger)
         if carte:
             cartes_trouvees.append(carte)
 
@@ -177,7 +177,7 @@ else:
 
 st.markdown("---")
 temps_restant_container = st.empty()
-temps_restant = int((heure_depart_jeu - datetime.now()).total_seconds())
+temps_restant = int((heure_depart_jeu - obtenir_heure_niger()).total_seconds())
 
 if temps_restant > 0:
     mins, secs = divmod(temps_restant, 60)
@@ -188,4 +188,3 @@ else:
     st.success("🔔 Le tour commence ! Calcul du tour suivant...")
     time.sleep(2)
     st.rerun()
-            
