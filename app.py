@@ -18,7 +18,7 @@ UTILISATEURS_AUTORISES = {
 for i in range(1, 11):
     UTILISATEURS_AUTORISES[f"ami{i}"] = f"ora{i}nx"
 
-# Système de stockage des connexions en mémoire vive (Simulé)
+# Système de stockage des connexions en mémoire vive
 if "historique_connexions" not in st.session_state:
     st.session_state["historique_connexions"] = [
         {"heure": datetime.now().strftime("%H:%M:%S"), "user": "System", "action": "Démarrage du serveur"}
@@ -43,7 +43,7 @@ if not st.session_state["connecte"]:
             st.session_state["connecte"] = True
             st.session_state["username"] = identifiant
             
-            # Enregistrement dans l'historique de session
+            # Enregistrement dans l'historique
             nouvelle_connexion = {
                 "heure": datetime.now().strftime("%H:%M:%S"),
                 "user": identifiant,
@@ -74,8 +74,8 @@ if st.session_state["username"] == "admin":
         for log in reversed(st.session_state["historique_connexions"]):
             st.caption(f"[{log['heure']}] **{log['user']}** : {log['action']}")
 
-# Bouton de déconnexion
-col_user, col_logout = st.columns()
+# Bouton de déconnexion (Correction effectuée ici avec [2] pour spécifier 2 colonnes)
+col_user, col_logout = st.columns(2)
 with col_user:
     st.write(f"👤 Connecté en tant que : **{st.session_state['username']}**")
 with col_logout:
@@ -188,4 +188,4 @@ else:
     st.success("🔔 Le tour commence ! Calcul du tour suivant...")
     time.sleep(2)
     st.rerun()
-         
+            
