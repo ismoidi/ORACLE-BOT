@@ -89,7 +89,7 @@ with col_logout:
         st.rerun()
 
 # ==========================================
-# 🎮 LOGIQUE DE L'APPLICATION (100% STATIQUE)
+# 🎮 LOGIQUE DE L'APPLICATION (100% STATIQUE SANS DECALAGE DE JOUR)
 # ==========================================
 TABLE_EXTRACTION = {
     1: 8, 2: 6, 3: 1, 4: 3, 5: 7, 6: 6, 7: 2, 8: 4, 9: 6, 10: 7,
@@ -104,11 +104,8 @@ TABLE_EXTRACTION = {
 SUITE_CHIFFRES = "861376246795151132650663323124341032236145510480515016240000000000"
 
 def determiner_carte_par_ordre_absolu(index_jeu):
-    if not SUITE_CHIFFRES or index_jeu <= 0:
-        return None
+    if not SUITE_CHIFFRES or index_jeu <= 0: return None
     enseignes = ["Pique ♠️", "Trèfle ♣️", "Carreau ♦️", "Cœur ♥️"]
-    
-    # CALCUL FIXE PUR : Aucune mention de la date ou de 'day' ici
     index_chiffre = (index_jeu - 1) % len(SUITE_CHIFFRES)
     chiffre_extrait = SUITE_CHIFFRES[index_chiffre]
     enseigne_actuelle = enseignes[index_chiffre % 4]
@@ -167,9 +164,7 @@ if cartes_trouvees:
     gagnant = compteur.most_common(1)
     
     if gagnant:
-        # Extraction propre du texte pour enlever les crochets et parenthèses (Tuples)
-        carte_texte = gagnant[0][0]
-        nb_repetitions = gagnant[0][1]
+        carte_texte, nb_repetitions = gagnant[0]
         st.success(f"### 🃏 {carte_texte} (Trouvée {nb_repetitions}x)")
     else:
         st.warning("Aucune carte trouvée.")
