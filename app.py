@@ -3,94 +3,23 @@ import time
 from collections import Counter
 from datetime import datetime, timedelta
 import itertools
-
-# Configuration visuelle du site
-st.set_page_config(page_title="Oracle Cards Bot - Fixe Absolu", page_icon="🔮", layout="centered")
+import asyncio
+import threading
+from telegram import Update
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 # ==========================================
-# 🔑 GENERATION SECURISEE DES ACCÈS UTILISATEURS
+# 🔑 CONFIGURATION SÉCURISÉE DU SITE & DU BOT
 # ==========================================
-UTILISATEURS_AUTORISES = {
-    "admin": "oracle2026"  # Votre compte Maître personnel
-}
+st.set_page_config(page_title="Oracle Cards Bot", page_icon="🔮", layout="centered")
 
-# Chaque ami possède un mot de passe unique qui lui est propre
+UTILISATEURS_AUTORISES = {"admin": "oracle2026"}
 for i in range(1, 11):
     UTILISATEURS_AUTORISES[f"ami{i}"] = f"ora{i}nx"
 
-# Fonction pour obtenir l'heure exacte du Niger (UTC+1)
-def obtenir_heure_niger():
-    return datetime.utcnow() + timedelta(hours=1)
+TOKEN_TELEGRAM = "8434603595:AAG5hkLGyXppK805olMcOTGxoOp3E2ATJ8O"
+SUITE_CHIFFRES = "861376246795151132650663323124341032236145510480515016240000000000"
 
-# Système de stockage des connexions en mémoire vive
-if "historique_connexions" not in st.session_state:
-    st.session_state["historique_connexions"] = [
-        {"heure": obtenir_heure_niger().strftime("%H:%M:%S"), "user": "System", "action": "Démarrage du serveur"}
-    ]
-
-# Initialisation de la session de connexion
-if "connecte" not in st.session_state:
-    st.session_state["connecte"] = False
-if "username" not in st.session_state:
-    st.session_state["username"] = ""
-
-# Interface de connexion verrouillée
-if not st.session_state["connecte"]:
-    st.title("🔒 Accès Sécurisé - Oracle Bot")
-    st.markdown("Veuillez entrer vos identifiants personnels pour accéder au bot.")
-    
-    identifiant = st.text_input("Identifiant utilisateur")
-    mot_de_passe = st.text_input("Mot de passe", type="password")
-    
-    if st.button("Se connecter"):
-        if identifiant in UTILISATEURS_AUTORISES and UTILISATEURS_AUTORISES[identifiant] == mot_de_passe:
-            st.session_state["connecte"] = True
-            st.session_state["username"] = identifiant
-            
-            # Enregistrement dans l'historique
-            nouvelle_connexion = {
-                "heure": obtenir_heure_niger().strftime("%H:%M:%S"),
-                "user": identifiant,
-                "action": "Connexion réussie"
-            }
-            st.session_state["historique_connexions"].append(nouvelle_connexion)
-            st.success("Connexion réussie !")
-            st.rerun()
-        else:
-            st.error("Identifiant ou mot de passe incorrect. Accès refusé.")
-    st.stop()
-
-# ==========================================
-# 📊 PANNEAU DE SURVEILLANCE EXCLUSIF ADMIN
-# ==========================================
-if st.session_state["username"] == "admin":
-    with st.sidebar:
-        st.title("👑 Dashboard Admin")
-        st.write("Contrôle des 10 accès utilisateurs uniques.")
-        
-        st.subheader("👥 Statut des comptes")
-        for u in UTILISATEURS_AUTORISES.keys():
-            if u != "admin":
-                st.write(f"🟢 **{u}** : Actif (`{UTILISATEURS_AUTORISES[u]}`)")
-                
-        st.markdown("---")
-        st.subheader("📋 Historique de cette session")
-        for log in reversed(st.session_state["historique_connexions"]):
-            st.caption(f"[{log['heure']}] **{log['user']}** : {log['action']}")
-
-# Bouton de déconnexion
-col_user, col_logout = st.columns(2)
-with col_user:
-    st.write(f"👤 Connecté en tant que : **{st.session_state['username']}**")
-with col_logout:
-    if st.button("Déconnexion"):
-        st.session_state["connecte"] = False
-        st.session_state["username"] = ""
-        st.rerun()
-
-# ==========================================
-# 🎮 LOGIQUE DE L'APPLICATION (100% STATIQUE)
-# ==========================================
 TABLE_EXTRACTION = {
     1: 8, 2: 6, 3: 1, 4: 3, 5: 7, 6: 6, 7: 2, 8: 4, 9: 6, 10: 7,
     11: 9, 12: 5, 13: 1, 14: 5, 15: 1, 16: 1, 17: 3, 18: 2, 19: 6, 20: 5,
@@ -101,7 +30,8 @@ TABLE_EXTRACTION = {
     61: 0, 62: 0, 63: 0, 64: 0, 65: 0, 66: 0
 }
 
-SUITE_CHIFFRES = "861376246795151132650663323124341032236145510480515016240000000000"
+def obtenir_heure_niger():
+    return datetime.utcnow() + timedelta(hours=1)
 
 def determiner_carte_par_ordre_absolu(index_jeu):
     if not SUITE_CHIFFRES or index_jeu <= 0: return None
@@ -112,75 +42,123 @@ def determiner_carte_par_ordre_absolu(index_jeu):
     valeur_carte = "10" if chiffre_extrait == '0' else chiffre_extrait
     return f"{valeur_carte} de {enseigne_actuelle}"
 
+def calculer_resultat_tour(prochain_tour):
+    chiffres_tour = [int(c) for c in str(prochain_tour) if c != '0']
+    if len(chiffres_tour) < 2: paires = [(chiffres_tour, chiffres_tour)]
+    else: paires = list(itertools.combinations(chiffres_tour, 2))
+    
+    positions_traitees = set()
+    for c1, c2 in paires:
+        debut, fin = min(c1, c2), max(c1, c2)
+        for pos in range(debut, fin + 1): positions_traitees.add(pos)
+        
+    cartes_trouvees = []
+    for pos in sorted(positions_traitees):
+        if pos in TABLE_EXTRACTION:
+            carte = determiner_carte_par_ordre_absolu(TABLE_EXTRACTION[pos])
+            if carte: cartes_trouvees.append(carte)
+            
+    if cartes_trouvees:
+        compteur = Counter(cartes_trouvees)
+        gagnant = compteur.most_common(1)
+        if gagnant:
+            return gagnant[0][0], gagnant[0][1]
+    return None
+
+# ==========================================
+# 🤖 BOT TELEGRAM EN ARRIÈRE-PLAN
+# ==========================================
+async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("🔮 **Oracle Bot Actif !**\nEnvoyez-moi un numéro de tour pour obtenir sa carte fixe.")
+
+async def msg_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    texte = update.message.text.strip()
+    if texte.isdigit():
+        res = calculer_resultat_tour(int(texte))
+        if res:
+            carte_nom, nb = res
+            await update.message.reply_text(f"🎯 Tour {texte} → 🃏 **{carte_nom}** (Trouvée {nb}x)")
+        else:
+            await update.message.reply_text("🎯 Aucun résultat pour ce tour.")
+    else:
+        await update.message.reply_text("⚠️ Envoyez uniquement un numéro de tour (chiffres).")
+
+def lancer_bot_telegram():
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        app = Application.builder().token(TOKEN_TELEGRAM).build()
+        app.add_handler(CommandHandler("start", start_cmd))
+        app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, msg_handler))
+        app.run_polling(close_loop=False)
+    except Exception as e:
+        pass
+
+if "bot_lance" not in st.session_state:
+    st.session_state["bot_lance"] = True
+    threading.Thread(target=lancer_bot_telegram, daemon=True).start()
+
+# ==========================================
+# 🌐 INTERFACE DU SITE STREAMLIT
+# ==========================================
+if "connecte" not in st.session_state: st.session_state["connecte"] = False
+if "username" not in st.session_state: st.session_state["username"] = ""
+
+if not st.session_state["connecte"]:
+    st.title("🔒 Accès Sécurisé - Oracle Bot")
+    identifiant = st.text_input("Identifiant utilisateur")
+    mot_de_passe = st.text_input("Mot de passe", type="password")
+    if st.button("Se connecter"):
+        if identifiant in UTILISATEURS_AUTORISES and UTILISATEURS_AUTORISES[identifiant] == mot_de_passe:
+            st.session_state["connecte"] = True
+            st.session_state["username"] = identifiant
+            st.rerun()
+        else: st.error("Identifiant ou mot de passe incorrect.")
+    st.stop()
+
+if st.session_state["username"] == "admin":
+    with st.sidebar:
+        st.title("👑 Dashboard Admin")
+        for u, p in UTILISATEURS_AUTORISES.items():
+            if u != "admin": st.write(f"🟢 **{u}** : `{p}`")
+
+col_user, col_logout = st.columns(2)
+with col_user: st.write(f"👤 Connecté : **{st.session_state['username']}**")
+with col_logout:
+    if st.button("Déconnexion"):
+        st.session_state["connecte"] = False
+        st.rerun()
+
 def obtenir_prochain_jeu_divisible_par_4():
     maintenant = obtenir_heure_niger()
     debut_jeux = maintenant.replace(hour=1, minute=0, second=0, microsecond=0)
-    if maintenant < debut_jeux:
-        debut_jeux -= timedelta(days=1)
+    if maintenant < debut_jeux: debut_jeux -= timedelta(days=1)
     minute_actuelle = int((maintenant - debut_jeux).total_seconds() / 60) + 1
-    if minute_actuelle % 4 == 0:
-        prochain_tour = minute_actuelle + 4
-    else:
-        prochain_tour = minute_actuelle + (4 - (minute_actuelle % 4))
-    heure_depart_jeu = debut_jeux + timedelta(minutes=prochain_tour - 1)
-    if prochain_tour > 1440:
-        prochain_tour = 4
-    return prochain_tour, heure_depart_jeu
+    prochain_tour = minute_actuelle + (4 - (minute_actuelle % 4)) if minute_actuelle % 4 != 0 else minute_actuelle + 4
+    return prochain_tour, debut_jeux + timedelta(minutes=prochain_tour - 1)
 
-# Affichage de l'horloge synchronisée du Niger
 maintenant_niger = obtenir_heure_niger()
 st.write(f"## ⏰ Horloge Niger : {maintenant_niger.strftime('%H:%M:%S')}")
 st.markdown("---")
 
 prochain_tour, heure_depart_jeu = obtenir_prochain_jeu_divisible_par_4()
-
 st.info(f"🎮 **Tour calculé en préparation : {prochain_tour}**")
 
-chiffres_tour = [int(c) for c in str(prochain_tour) if c != '0']
-if len(chiffres_tour) < 2:
-    paires = [(chiffres_tour, chiffres_tour)]
-else:
-    paires = list(itertools.combinations(chiffres_tour, 2))
-
-positions_traitees = set()
-for c1, c2 in paires:
-    debut = min(c1, c2)
-    fin = max(c1, c2)
-    intervalle = list(range(debut, fin + 1))
-    for pos in intervalle:
-        positions_traitees.add(pos)
-
-cartes_trouvees = []
-for position_grille in sorted(positions_traitees):
-    if position_grille in TABLE_EXTRACTION:
-        index_cible = TABLE_EXTRACTION[position_grille]
-        carte = determiner_carte_par_ordre_absolu(index_cible)
-        if carte:
-            cartes_trouvees.append(carte)
-
+res_site = calculer_resultat_tour(prochain_tour)
 st.subheader("🎯 CARTE RECOMMANDÉE POUR CE TOUR")
-if cartes_trouvees:
-    compteur = Counter(cartes_trouvees)
-    gagnant = compteur.most_common(1)
-    
-    if gagnant:
-        carte_texte, nb_repetitions = gagnant
-        st.success(f"### 🃏 {carte_texte} (Trouvée {nb_repetitions}x)")
-    else:
-        st.warning("Aucune carte trouvée.")
+if res_site:
+    carte_nom, nb = res_site
+    st.success(f"### 🃏 {carte_nom} (Trouvée {nb}x)")
 else:
-    st.warning("Aucune carte trouvée pour cette combinaison.")
+    st.warning("Aucune carte trouvée.")
 
 st.markdown("---")
-temps_restant_container = st.empty()
 temps_restant = int((heure_depart_jeu - obtenir_heure_niger()).total_seconds())
-
 if temps_restant > 0:
-    mins, secs = divmod(temps_restant, 60)
-    temps_restant_container.metric(label="⏳ Décompte avant le tour", value=f"{mins}m {secs}s")
+    st.metric(label="⏳ Décompte avant le tour", value=f"{temps_restant // 60}m {temps_restant % 60}s")
     time.sleep(1)
     st.rerun()
 else:
-    st.success("🔔 Le tour commence ! Calcul du tour suivant...")
+    st.success("🔔 Nouveau tour !")
     time.sleep(2)
     st.rerun()
