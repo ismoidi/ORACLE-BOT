@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import itertools
 
 # Configuration visuelle du site
-st.set_page_config(page_title="Oracle Cards Bot - Sécurisé unique", page_icon="🔮", layout="centered")
+st.set_page_config(page_title="Oracle Cards Bot - Fixe Absolu", page_icon="🔮", layout="centered")
 
 # ==========================================
 # 🔑 GENERATION SECURISEE DES ACCÈS UTILISATEURS
@@ -14,7 +14,7 @@ UTILISATEURS_AUTORISES = {
     "admin": "oracle2026"  # Votre compte Maître personnel
 }
 
-# Génération de mots de passe strictement uniques (Format: oraXnx)
+# Chaque ami possède un mot de passe unique qui lui est propre
 for i in range(1, 11):
     UTILISATEURS_AUTORISES[f"ami{i}"] = f"ora{i}nx"
 
@@ -89,7 +89,7 @@ with col_logout:
         st.rerun()
 
 # ==========================================
-# 🎮 LOGIQUE DE L'APPLICATION
+# 🎮 LOGIQUE DE L'APPLICATION (100% STATIQUE)
 # ==========================================
 TABLE_EXTRACTION = {
     1: 8, 2: 6, 3: 1, 4: 3, 5: 7, 6: 6, 7: 2, 8: 4, 9: 6, 10: 7,
@@ -103,16 +103,17 @@ TABLE_EXTRACTION = {
 
 SUITE_CHIFFRES = "861376246795151132650663323124341032236145510480515016240000000000"
 
-def determiner_carte_par_ordre_fixe(index_jeu):
+def determiner_carte_par_ordre_absolu(index_jeu):
     if not SUITE_CHIFFRES or index_jeu <= 0:
         return None
-    # Intégration des symboles requis pour l'affichage complet
     enseignes = ["Pique ♠️", "Trèfle ♣️", "Carreau ♦️", "Cœur ♥️"]
+    
+    # CALCUL FIXE PUR : Aucune mention de la date ou de 'day' ici
     index_chiffre = (index_jeu - 1) % len(SUITE_CHIFFRES)
     chiffre_extrait = SUITE_CHIFFRES[index_chiffre]
     enseigne_actuelle = enseignes[index_chiffre % 4]
     valeur_carte = "10" if chiffre_extrait == '0' else chiffre_extrait
-    return f"{valeur_carte} {enseigne_actuelle}"
+    return f"{valeur_carte} de {enseigne_actuelle}"
 
 def obtenir_prochain_jeu_divisible_par_4():
     maintenant = obtenir_heure_niger()
@@ -156,7 +157,7 @@ cartes_trouvees = []
 for position_grille in sorted(positions_traitees):
     if position_grille in TABLE_EXTRACTION:
         index_cible = TABLE_EXTRACTION[position_grille]
-        carte = determiner_carte_par_ordre_fixe(index_cible)
+        carte = determiner_carte_par_ordre_absolu(index_cible)
         if carte:
             cartes_trouvees.append(carte)
 
@@ -166,10 +167,10 @@ if cartes_trouvees:
     gagnant = compteur.most_common(1)
     
     if gagnant:
-        # Nettoyage de l'affichage des tuples Python pour n'afficher que le texte propre
-        carte_propre = gagnant[0][0]
-        nb_rep = gagnant[0][1]
-        st.success(f"### 🃏 {carte_propre} (Trouvée {nb_rep}x)")
+        # Extraction propre du texte pour enlever les crochets et parenthèses (Tuples)
+        carte_texte = gagnant[0][0]
+        nb_repetitions = gagnant[0][1]
+        st.success(f"### 🃏 {carte_texte} (Trouvée {nb_repetitions}x)")
     else:
         st.warning("Aucune carte trouvée.")
 else:
@@ -188,4 +189,3 @@ else:
     st.success("🔔 Le tour commence ! Calcul du tour suivant...")
     time.sleep(2)
     st.rerun()
-    
