@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import itertools
 
 # Configuration visuelle du site
-st.set_page_config(page_title="Oracle Cards Bot - Admin Control", page_icon="🔮", layout="centered")
+st.set_page_config(page_title="Oracle Cards Bot - Sécurisé unique", page_icon="🔮", layout="centered")
 
 # ==========================================
 # 🔑 GENERATION SECURISEE DES ACCÈS UTILISATEURS
@@ -14,7 +14,7 @@ UTILISATEURS_AUTORISES = {
     "admin": "oracle2026"  # Votre compte Maître personnel
 }
 
-# Génération des mots de passe (Format: oraXnx)
+# Génération de mots de passe strictement uniques (Format: oraXnx)
 for i in range(1, 11):
     UTILISATEURS_AUTORISES[f"ami{i}"] = f"ora{i}nx"
 
@@ -66,7 +66,7 @@ if not st.session_state["connecte"]:
 if st.session_state["username"] == "admin":
     with st.sidebar:
         st.title("👑 Dashboard Admin")
-        st.write("Contrôle des 10 accès utilisateurs en direct.")
+        st.write("Contrôle des 10 accès utilisateurs uniques.")
         
         st.subheader("👥 Statut des comptes")
         for u in UTILISATEURS_AUTORISES.keys():
@@ -103,16 +103,15 @@ TABLE_EXTRACTION = {
 
 SUITE_CHIFFRES = "861376246795151132650663323124341032236145510480515016240000000000"
 
-def determiner_carte_par_ordre_avec_jour(index_jeu, date_actuelle):
+def determiner_carte_par_ordre_fixe(index_jeu):
     if not SUITE_CHIFFRES or index_jeu <= 0:
         return None
-    enseignes = ["Pique", "Trèfle", "Carreau", "Cœur"]
-    decalage_jour = date_actuelle.day
-    index_chiffre = (index_jeu - 1 + decalage_jour) % len(SUITE_CHIFFRES)
+    # Intégration des symboles requis pour l'affichage complet
+    enseignes = ["Pique ♠️", "Trèfle ♣️", "Carreau ♦️", "Cœur ♥️"]
+    index_chiffre = (index_jeu - 1) % len(SUITE_CHIFFRES)
     chiffre_extrait = SUITE_CHIFFRES[index_chiffre]
     enseigne_actuelle = enseignes[index_chiffre % 4]
     valeur_carte = "10" if chiffre_extrait == '0' else chiffre_extrait
-    # Format simplifié demandé : "Valeur Enseigne"
     return f"{valeur_carte} {enseigne_actuelle}"
 
 def obtenir_prochain_jeu_divisible_par_4():
@@ -157,7 +156,7 @@ cartes_trouvees = []
 for position_grille in sorted(positions_traitees):
     if position_grille in TABLE_EXTRACTION:
         index_cible = TABLE_EXTRACTION[position_grille]
-        carte = determiner_carte_par_ordre_avec_jour(index_cible, maintenant_niger)
+        carte = determiner_carte_par_ordre_fixe(index_cible)
         if carte:
             cartes_trouvees.append(carte)
 
@@ -167,9 +166,10 @@ if cartes_trouvees:
     gagnant = compteur.most_common(1)
     
     if gagnant:
-        carte_la_plus_repetee = gagnant[0][0]
-        nb_repetitions = gagnant[0][1]
-        st.success(f"### 🃏 {carte_la_plus_repetee} (Trouvée {nb_repetitions}x)")
+        # Nettoyage de l'affichage des tuples Python pour n'afficher que le texte propre
+        carte_propre = gagnant[0][0]
+        nb_rep = gagnant[0][1]
+        st.success(f"### 🃏 {carte_propre} (Trouvée {nb_rep}x)")
     else:
         st.warning("Aucune carte trouvée.")
 else:
@@ -188,3 +188,4 @@ else:
     st.success("🔔 Le tour commence ! Calcul du tour suivant...")
     time.sleep(2)
     st.rerun()
+    
