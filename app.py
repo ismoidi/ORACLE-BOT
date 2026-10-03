@@ -5,20 +5,24 @@ from datetime import datetime, timedelta
 import itertools
 
 # Configuration visuelle du site
-st.set_page_config(page_title="Oracle Cards Bot - Sécurisé 10 Users", page_icon="🔮", layout="centered")
+st.set_page_config(page_title="Oracle Cards Bot - Admin Control", page_icon="🔮", layout="centered")
 
 # ==========================================
-# 🔑 GENERATION SECURISEE DES 10 ACCÈS UTILISATEURS
+# 🔑 GENERATION SECURISEE DES ACCÈS UTILISATEURS
 # ==========================================
 UTILISATEURS_AUTORISES = {
     "admin": "oracle2026"  # Votre compte Maître personnel
 }
 
-# Génération des nouveaux mots de passe complexes (Format: oraXnx)
+# Génération des mots de passe (Format: oraXnx)
 for i in range(1, 11):
-    identifiant_ami = f"ami{i}"
-    mot_de_passe_ami = f"ora{i}nx"
-    UTILISATEURS_AUTORISES[identifiant_ami] = mot_de_passe_ami
+    UTILISATEURS_AUTORISES[f"ami{i}"] = f"ora{i}nx"
+
+# Système de stockage des connexions en mémoire vive (Simulé)
+if "historique_connexions" not in st.session_state:
+    st.session_state["historique_connexions"] = [
+        {"heure": datetime.now().strftime("%H:%M:%S"), "user": "System", "action": "Démarrage du serveur"}
+    ]
 
 # Initialisation de la session de connexion
 if "connecte" not in st.session_state:
@@ -31,13 +35,21 @@ if not st.session_state["connecte"]:
     st.title("🔒 Accès Sécurisé - Oracle Bot")
     st.markdown("Veuillez entrer vos identifiants personnels pour accéder au bot.")
     
-    identifiant = st.text_input("Identifiant utilisateur (ex: ami1, ami2...)")
+    identifiant = st.text_input("Identifiant utilisateur")
     mot_de_passe = st.text_input("Mot de passe", type="password")
     
     if st.button("Se connecter"):
         if identifiant in UTILISATEURS_AUTORISES and UTILISATEURS_AUTORISES[identifiant] == mot_de_passe:
             st.session_state["connecte"] = True
             st.session_state["username"] = identifiant
+            
+            # Enregistrement dans l'historique de session
+            nouvelle_connexion = {
+                "heure": datetime.now().strftime("%H:%M:%S"),
+                "user": identifiant,
+                "action": "Connexion réussie"
+            }
+            st.session_state["historique_connexions"].append(nouvelle_connexion)
             st.success("Connexion réussie !")
             st.rerun()
         else:
@@ -45,9 +57,24 @@ if not st.session_state["connecte"]:
     st.stop()
 
 # ==========================================
-# 🎮 LOGIQUE DE L'APPLICATION (Une fois connecté)
+# 📊 PANNEAU DE SURVEILLANCE EXCLUSIF ADMIN
 # ==========================================
+if st.session_state["username"] == "admin":
+    with st.sidebar:
+        st.title("👑 Dashboard Admin")
+        st.write("Contrôle des 10 accès utilisateurs en direct.")
+        
+        st.subheader("👥 Statut des comptes")
+        for u in UTILISATEURS_AUTORISES.keys():
+            if u != "admin":
+                st.write(f"🟢 **{u}** : Actif (`{UTILISATEURS_AUTORISES[u]}`)")
+                
+        st.markdown("---")
+        st.subheader("📋 Historique de cette session")
+        for log in reversed(st.session_state["historique_connexions"]):
+            st.caption(f"[{log['heure']}] **{log['user']}** : {log['action']}")
 
+# Bouton de déconnexion
 col_user, col_logout = st.columns()
 with col_user:
     st.write(f"👤 Connecté en tant que : **{st.session_state['username']}**")
@@ -57,6 +84,9 @@ with col_logout:
         st.session_state["username"] = ""
         st.rerun()
 
+# ==========================================
+# 🎮 LOGIQUE DE L'APPLICATION
+# ==========================================
 TABLE_EXTRACTION = {
     1: 8, 2: 6, 3: 1, 4: 3, 5: 7, 6: 6, 7: 2, 8: 4, 9: 6, 10: 7,
     11: 9, 12: 5, 13: 1, 14: 5, 15: 1, 16: 1, 17: 3, 18: 2, 19: 6, 20: 5,
@@ -137,7 +167,6 @@ if cartes_trouvees:
     gagnant = compteur.most_common(1)
     
     if gagnant:
-        # Résolution du format d'affichage propre
         carte_la_plus_repetee = gagnant[0][0]
         nb_repetitions = gagnant[0][1]
         st.success(f"### 🃏 {carte_la_plus_repetee} (Trouvée {nb_repetitions}x)")
@@ -159,3 +188,4 @@ else:
     st.success("🔔 Le tour commence ! Calcul du tour suivant...")
     time.sleep(2)
     st.rerun()
+         
