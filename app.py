@@ -1,5 +1,4 @@
 import streamlit as st
-import time
 from collections import Counter
 from datetime import datetime, timedelta
 import itertools
@@ -62,29 +61,27 @@ def calculer_resultat_tour(prochain_tour):
         compteur = Counter(cartes_trouvees)
         gagnant = compteur.most_common(1)
         if gagnant:
-            (carte_nom, nb) = gagnant[0]
+            (carte_nom, nb) = gagnant
             return carte_nom, nb
     return None
 
 # ==========================================
-# 🤖 BOT TELEGRAM EN ARRIÈRE-PLAN
+# 🤖 BOT TELEGRAM AUTOMATIQUE
 # ==========================================
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🔮 **Oracle Bot Actif !**\nEnvoyez-moi un numéro de tour pour obtenir son analyse décalée.")
+    await update.message.reply_text("🔮 **Oracle Bot Actif !**\nEnvoyez un numéro de tour.")
 
 async def msg_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     texte = update.message.text.strip()
     if texte.isdigit():
         tour_actuel = int(texte)
-        tour_precedent = tour_actuel - 1  # Loi du jeu précédent appliquée
+        tour_precedent = tour_actuel - 1
         res = calculer_resultat_tour(tour_actuel)
         if res:
             carte_nom, nb = res
             await update.message.reply_text(f"🎯 Tour {tour_precedent} → 🃏 **{carte_nom}**")
         else:
-            await update.message.reply_text(f"🎯 Aucun résultat pour le tour {tour_precedent}.")
-    else:
-        await update.message.reply_text("⚠️ Envoyez uniquement un numéro de tour (chiffres).")
+            await update.message.reply_text(f"🎯 Aucun résultat.")
 
 def lancer_bot_telegram():
     try:
@@ -94,7 +91,7 @@ def lancer_bot_telegram():
         app.add_handler(CommandHandler("start", start_cmd))
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, msg_handler))
         app.run_polling(close_loop=False)
-    except Exception as e:
+    except Exception:
         pass
 
 if "bot_lance" not in st.session_state:
@@ -102,16 +99,19 @@ if "bot_lance" not in st.session_state:
     threading.Thread(target=lancer_bot_telegram, daemon=True).start()
 
 # ==========================================
-# 🌐 INTERFACE DU SITE STREAMLIT
+# 🌐 INTERFACE FIXE ET LÉGÈRE POUR LE SITE
 # ==========================================
 if "connecte" not in st.session_state: st.session_state["connecte"] = False
 if "username" not in st.session_state: st.session_state["username"] = ""
 
 if not st.session_state["connecte"]:
-    st.title("🔒 Accès Sécurisé - Oracle Bot")
-    identifiant = st.text_input("Identifiant utilisateur")
+    st.title("🔒 Connexion - Oracle Bot")
+    st.write("Veuillez entrer vos identifiants uniques.")
+    
+    identifiant = st.text_input("Identifiant (ex: ami1)")
     mot_de_passe = st.text_input("Mot de passe", type="password")
-    if st.button("Se connecter"):
+    
+    if st.button("Valider la connexion"):
         if identifiant in UTILISATEURS_AUTORISES and UTILISATEURS_AUTORISES[identifiant] == mot_de_passe:
             st.session_state["connecte"] = True
             st.session_state["username"] = identifiant
@@ -125,12 +125,10 @@ if st.session_state["username"] == "admin":
         for u, p in UTILISATEURS_AUTORISES.items():
             if u != "admin": st.write(f"🟢 **{u}** : `{p}`")
 
-col_user, col_logout = st.columns(2)
-with col_user: st.write(f"👤 Connecté : **{st.session_state['username']}**")
-with col_logout:
-    if st.button("Déconnexion"):
-        st.session_state["connecte"] = False
-        st.rerun()
+st.write(f"👤 Compte actif : **{st.session_state['username']}**")
+if st.button("Déconnexion"):
+    st.session_state["connecte"] = False
+    st.rerun()
 
 def obtenir_prochain_jeu_divisible_par_4():
     maintenant = obtenir_heure_niger()
@@ -138,32 +136,20 @@ def obtenir_prochain_jeu_divisible_par_4():
     if maintenant < debut_jeux: debut_jeux -= timedelta(days=1)
     minute_actuelle = int((maintenant - debut_jeux).total_seconds() / 60) + 1
     prochain_tour = minute_actuelle + (4 - (minute_actuelle % 4)) if minute_actuelle % 4 != 0 else minute_actuelle + 4
-    return prochain_tour, debut_jeux + timedelta(minutes=prochain_tour - 1)
+    return prochain_tour
 
-maintenant_niger = obtenir_heure_niger()
-st.write(f"## ⏰ Horloge Niger : {maintenant_niger.strftime('%H:%M:%S')}")
 st.markdown("---")
+prochain_tour = obtenir_prochain_jeu_divisible_par_4()
+tour_affiche = prochain_tour - 1
 
-prochain_tour, heure_depart_jeu = obtenir_prochain_jeu_divisible_par_4()
-tour_affiche = prochain_tour - 1  # Affichage du jeu précédent sur le site
-
-st.info(f"🎮 **Tour calculé en préparation (Affiché en jeu précédent) : {tour_affiche}**")
+st.info(f"🎮 **Analyse du tour en cours : {tour_affiche}**")
 
 res_site = calculer_resultat_tour(prochain_tour)
-st.subheader(f"🎯 CARTE RECOMMANDÉE POUR LE TOUR {tour_affiche}")
 if res_site:
     carte_nom, nb = res_site
-    st.success(f"### 🃏 {carte_nom}")
+    st.success(f"### 🃏 Carte recommandée : {carte_nom}")
 else:
     st.warning("Aucune carte trouvée.")
 
-st.markdown("---")
-temps_restant = int((heure_depart_jeu - obtenir_heure_niger()).total_seconds())
-if temps_restant > 0:
-    st.metric(label="⏳ Décompte avant le tour", value=f"{temps_restant // 60}m {temps_restant % 60}s")
-    time.sleep(1)
-    st.rerun()
-else:
-    st.success("🔔 Nouveau tour !")
-    time.sleep(2)
+if st.button("🔄 Rafraîchir les calculs"):
     st.rerun()
