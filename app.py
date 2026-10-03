@@ -43,7 +43,8 @@ def determiner_carte_par_ordre_absolu(index_jeu):
 
 def calculer_resultat_tour(prochain_tour):
     chiffres_tour = [int(c) for c in str(prochain_tour) if c != '0']
-    if len(chiffres_tour) < 2: paires = [(chiffres_tour, chiffres_tour)]
+    if not chiffres_tour: return None
+    if len(chiffres_tour) < 2: paires = [(chiffres_tour[0], chiffres_tour[0])]
     else: paires = list(itertools.combinations(chiffres_tour, 2))
     
     positions_traitees = set()
@@ -61,8 +62,7 @@ def calculer_resultat_tour(prochain_tour):
         compteur = Counter(cartes_trouvees)
         gagnant = compteur.most_common(1)
         if gagnant:
-            (carte_nom, nb) = gagnant
-            return carte_nom, nb
+            return gagnant[0][0], gagnant[0][1]
     return None
 
 # ==========================================
