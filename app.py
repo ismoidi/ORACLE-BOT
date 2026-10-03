@@ -5,19 +5,22 @@ from datetime import datetime, timedelta
 import itertools
 
 # Configuration visuelle du site
-st.set_page_config(page_title="Oracle Cards Bot - Sécurisé", page_icon="🔮", layout="centered")
+st.set_page_config(page_title="Oracle Cards Bot - Sécurisé 10 Users", page_icon="🔮", layout="centered")
 
 # ==========================================
-# 🔑 ZONE DE CONTRÔLE DES UTILISATEURS (Gestion des accès)
+# 🔑 GENERATION SECURISEE DES 10 ACCÈS UTILISATEURS
 # ==========================================
-# Vous pouvez modifier les identifiants et les mots de passe ici à tout moment.
 UTILISATEURS_AUTORISES = {
-    "admin": "oracle2026",    # Votre compte personnel
-    "ami1": "niger77",       # Compte pour votre premier ami
-    "ami2": "cards88"        # Compte pour votre deuxième ami
+    "admin": "oracle2026"  # Votre compte Maître personnel
 }
 
-# Initialisation de la session
+# Génération des nouveaux mots de passe complexes (Format: oraXnx)
+for i in range(1, 11):
+    identifiant_ami = f"ami{i}"
+    mot_de_passe_ami = f"ora{i}nx"
+    UTILISATEURS_AUTORISES[identifiant_ami] = mot_de_passe_ami
+
+# Initialisation de la session de connexion
 if "connecte" not in st.session_state:
     st.session_state["connecte"] = False
 if "username" not in st.session_state:
@@ -28,7 +31,7 @@ if not st.session_state["connecte"]:
     st.title("🔒 Accès Sécurisé - Oracle Bot")
     st.markdown("Veuillez entrer vos identifiants personnels pour accéder au bot.")
     
-    identifiant = st.text_input("Identifiant utilisateur")
+    identifiant = st.text_input("Identifiant utilisateur (ex: ami1, ami2...)")
     mot_de_passe = st.text_input("Mot de passe", type="password")
     
     if st.button("Se connecter"):
@@ -45,7 +48,7 @@ if not st.session_state["connecte"]:
 # 🎮 LOGIQUE DE L'APPLICATION (Une fois connecté)
 # ==========================================
 
-col_user, col_logout = st.columns([2, 1])
+col_user, col_logout = st.columns()
 with col_user:
     st.write(f"👤 Connecté en tant que : **{st.session_state['username']}**")
 with col_logout:
@@ -131,9 +134,15 @@ for position_grille in sorted(positions_traitees):
 st.subheader("🎯 CARTE RECOMMANDÉE POUR CE TOUR")
 if cartes_trouvees:
     compteur = Counter(cartes_trouvees)
-    gagnant = compteur.most_common(1)[0]
-    carte_la_plus_repetee, nb_repetitions = gagnant
-    st.success(f"### 🃏 {carte_la_plus_repetee} (Trouvée {nb_repetitions}x)")
+    gagnant = compteur.most_common(1)
+    
+    if gagnant:
+        # Résolution du format d'affichage propre
+        carte_la_plus_repetee = gagnant[0][0]
+        nb_repetitions = gagnant[0][1]
+        st.success(f"### 🃏 {carte_la_plus_repetee} (Trouvée {nb_repetitions}x)")
+    else:
+        st.warning("Aucune carte trouvée.")
 else:
     st.warning("Aucune carte trouvée pour cette combinaison.")
 
