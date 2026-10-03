@@ -62,24 +62,27 @@ def calculer_resultat_tour(prochain_tour):
         compteur = Counter(cartes_trouvees)
         gagnant = compteur.most_common(1)
         if gagnant:
-            return gagnant[0][0], gagnant[0][1]
+            (carte_nom, nb) = gagnant[0]
+            return carte_nom, nb
     return None
 
 # ==========================================
 # 🤖 BOT TELEGRAM EN ARRIÈRE-PLAN
 # ==========================================
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🔮 **Oracle Bot Actif !**\nEnvoyez-moi un numéro de tour pour obtenir sa carte fixe.")
+    await update.message.reply_text("🔮 **Oracle Bot Actif !**\nEnvoyez-moi un numéro de tour pour obtenir son analyse décalée.")
 
 async def msg_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     texte = update.message.text.strip()
     if texte.isdigit():
-        res = calculer_resultat_tour(int(texte))
+        tour_actuel = int(texte)
+        tour_precedent = tour_actuel - 1  # Loi du jeu précédent appliquée
+        res = calculer_resultat_tour(tour_actuel)
         if res:
             carte_nom, nb = res
-            await update.message.reply_text(f"🎯 Tour {texte} → 🃏 **{carte_nom}** (Trouvée {nb}x)")
+            await update.message.reply_text(f"🎯 Tour {tour_precedent} → 🃏 **{carte_nom}**")
         else:
-            await update.message.reply_text("🎯 Aucun résultat pour ce tour.")
+            await update.message.reply_text(f"🎯 Aucun résultat pour le tour {tour_precedent}.")
     else:
         await update.message.reply_text("⚠️ Envoyez uniquement un numéro de tour (chiffres).")
 
@@ -142,13 +145,15 @@ st.write(f"## ⏰ Horloge Niger : {maintenant_niger.strftime('%H:%M:%S')}")
 st.markdown("---")
 
 prochain_tour, heure_depart_jeu = obtenir_prochain_jeu_divisible_par_4()
-st.info(f"🎮 **Tour calculé en préparation : {prochain_tour}**")
+tour_affiche = prochain_tour - 1  # Affichage du jeu précédent sur le site
+
+st.info(f"🎮 **Tour calculé en préparation (Affiché en jeu précédent) : {tour_affiche}**")
 
 res_site = calculer_resultat_tour(prochain_tour)
-st.subheader("🎯 CARTE RECOMMANDÉE POUR CE TOUR")
+st.subheader(f"🎯 CARTE RECOMMANDÉE POUR LE TOUR {tour_affiche}")
 if res_site:
     carte_nom, nb = res_site
-    st.success(f"### 🃏 {carte_nom} (Trouvée {nb}x)")
+    st.success(f"### 🃏 {carte_nom}")
 else:
     st.warning("Aucune carte trouvée.")
 
