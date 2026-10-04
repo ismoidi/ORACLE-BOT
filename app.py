@@ -63,17 +63,17 @@ def obtenir_prochain_jeu_divisible_par_4():
     prochain_tour = minute_actuelle + (4 - (minute_actuelle % 4)) if minute_actuelle % 4 != 0 else minute_actuelle + 4
     return prochain_tour
 
-# 1️⃣ Calcul automatique du tour
+# 1️⃣ Calcul du numéro de tour réel
 tour_reel = obtenir_prochain_jeu_divisible_par_4()
 
-# 2️⃣ Application stricte de la LOI DE MOINS 1
+# 2️⃣ Application de la loi de moins 1
 tour_loi_appliquee = tour_reel - 1
 
-# 3️⃣ Extraction de la carte
-carte_recommandee = calculer_resultat_tour(tour_loi_appliquee)
+# 3️⃣ Affichage clair à l'écran
+st.info(f"🎮 **Numéro du jeu : {tour_loi_appliquee}**")
 
-# Affichage UNIQUE et propre à l'écran
+carte_recommandee = calculer_resultat_tour(tour_loi_appliquee)
 if carte_recommandee:
-    st.write(f"## 🃏 {carte_recommandee}")
+    st.success(f"### 🃏 {carte_recommandee}")
 else:
-    st.write("## 🔄 Analyse en cours...")
+    st.write("🔄 Analyse en cours...")
