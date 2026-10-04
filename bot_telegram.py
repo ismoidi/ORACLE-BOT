@@ -4,7 +4,7 @@ import threading
 import os
 import logging
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from flask import Flask
 from telegram.ext import ApplicationBuilder
@@ -37,7 +37,6 @@ def home():
 
 # --- Logique de calcul ---
 def obtenir_heure_niger():
-    # Fuseau horaire exact du Niger (UTC+1)
     return datetime.now(ZoneInfo("Africa/Niamey"))
 
 def determiner_carte_par_ordre_absolu(index_jeu):
@@ -80,16 +79,20 @@ async def boucle_envoi_telegram():
     await app_bot.start()
     
     dernier_tour_envoye = None
+    derniere_minute_envoyee = None
     logging.info("Boucle d'envoi Telegram démarrée.")
 
     while True:
         try:
+            maintenant = obtenir_heure_niger()
+            minute_cle = maintenant.strftime("%Y-%m-%d %H:%M")
+            
             tour_reel = obtenir_prochain_jeu_divisible_par_4()
             tour_loi_appliquee = tour_reel - 1
 
-            if tour_loi_appliquee != dernier_tour_envoye:
+            if tour_loi_appliquee != dernier_tour_envoye and minute_cle != derniere_minute_envoyee:
                 carte = calculer_resultat_tour(tour_loi_appliquee) or "Analyse en cours..."
-                heure_actuelle = obtenir_heure_niger().strftime("%H:%M:%S")
+                heure_actuelle = maintenant.strftime("%H:%M:%S")
 
                 message = (
                     f"🔮 **ORACLE PREDICTION**\n"
@@ -100,12 +103,14 @@ async def boucle_envoi_telegram():
 
                 await app_bot.bot.send_message(chat_id=CHAT_ID, text=message, parse_mode="Markdown")
                 logging.info(f"Message envoyé pour le jeu {tour_loi_appliquee}")
+                
                 dernier_tour_envoye = tour_loi_appliquee
+                derniere_minute_envoyee = minute_cle
 
         except Exception as e:
             logging.error(f"Erreur durant l'envoi : {e}")
 
-        await asyncio.sleep(10)
+        await asyncio.sleep(15)
 
 def lancer_bot_background():
     loop = asyncio.new_event_loop()
@@ -113,10 +118,8 @@ def lancer_bot_background():
     loop.run_until_complete(boucle_envoi_telegram())
 
 if __name__ == '__main__':
-    # Démarrage du thread d'arrière-plan pour Telegram
     t = threading.Thread(target=lancer_bot_background, daemon=True)
     t.start()
     
-    # Démarrage du serveur Flask principal
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
