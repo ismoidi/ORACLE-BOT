@@ -26,20 +26,18 @@ TABLE_EXTRACTION = {
 parametres = st.query_params
 code_entre = parametres.get("code", "")
 
-# Permet la saisie manuelle si le code n'est pas fourni dans l'URL
 if not code_entre:
     code_entre = st.text_input("🔑 Entrez la clé d'accès maîtresse :", type="password")
 
 if code_entre != CLE_ACCES_SECRETE:
-    st.error("🔒 Accès refusé. Ce serveur est privé.")[span_1](start_span)[span_1](end_span)
-    st.write("Vous n'avez pas l'autorisation d'accéder aux calculs de l'Oracle.")[span_2](start_span)[span_2](end_span)
+    st.error("🔒 Accès refusé. Ce serveur est privé.")[span_0](start_span)[span_0](end_span)
+    st.write("Vous n'avez pas l'autorisation d'accéder aux calculs de l'Oracle.")[span_1](start_span)[span_1](end_span)
     st.stop()
 
 # ==========================================
 # 🌐 ALGORITHME ET FONCTIONS DE CALCUL
 # ==========================================
 def obtenir_heure_niger():
-    # UTC+1 pour l'heure du Niger
     return datetime.now(timezone.utc) + timedelta(hours=1)
 
 def determiner_carte_par_ordre_absolu(index_jeu):
@@ -93,20 +91,23 @@ def obtenir_prochain_jeu_divisible_par_4():
     return prochain_tour
 
 # ==========================================
-# 📊 EXÉCUTION ET AFFICHAGE DES RÉSULTATS
+# 📊 MISE À JOUR EN TEMPS RÉEL (AUTOMATIQUE)
 # ==========================================
-# 1️⃣ Calcul du numéro de tour réel
-tour_reel = obtenir_prochain_jeu_divisible_par_4()
+@st.fragment(run_every=5)
+def afficher_oracle_en_direct():
+    heure_actuelle = obtenir_heure_niger().strftime("%H:%M:%S")
+    tour_reel = obtenir_prochain_jeu_divisible_par_4()
+    tour_loi_appliquee = tour_reel - 1
+    carte_recommandee = calculer_resultat_tour(tour_loi_appliquee)
 
-# 2️⃣ Application de la loi de moins 1
-tour_loi_appliquee = tour_reel - 1
+    st.caption(f"🕒 Heure actuelle (Niger) : {heure_actuelle}")
+    st.info(f"🎮 **Numéro du jeu : {tour_loi_appliquee}**")
 
-# 3️⃣ Affichage sécurisé des données
-st.info(f"🎮 **Numéro du jeu : {tour_loi_appliquee}**")
+    if carte_recommandee:
+        st.success(f"### 🃏 {carte_recommandee}")
+    else:
+        st.warning("🔄 Analyse en cours...")
 
-carte_recommandee = calculer_resultat_tour(tour_loi_appliquee)
-if carte_recommandee:
-    st.success(f"### 🃏 {carte_recommandee}")
-else:
-    st.warning("🔄 Analyse en cours...")
+# Lancement du composant auto-rafraîchissant
+afficher_oracle_en_direct()
     
