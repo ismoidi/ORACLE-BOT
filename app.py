@@ -1,7 +1,7 @@
-import streamlit as st
 from collections import Counter
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 import itertools
+import streamlit as st
 
 # Configuration de base épurée pour la Mini-App Telegram
 st.set_page_config(page_title="Oracle", page_icon="🔮", layout="centered")
@@ -21,24 +21,30 @@ TABLE_EXTRACTION = {
 }
 
 # ==========================================
-# 🛡️ VÉRIFICATION DE LA SÉCURITÉ DU LIEN
+# 🛡️ VÉRIFICATION DE LA SÉCURITÉ DU LIEN ET ACCÈS
 # ==========================================
 parametres = st.query_params
 code_entre = parametres.get("code", "")
 
+# Permet la saisie manuelle si le code n'est pas fourni dans l'URL
+if not code_entre:
+    code_entre = st.text_input("🔑 Entrez la clé d'accès maîtresse :", type="password")
+
 if code_entre != CLE_ACCES_SECRETE:
-    st.error("🔒 Accès refusé. Ce serveur est privé.")
-    st.write("Vous n'avez pas l'autorisation d'accéder aux calculs de l'Oracle.")
+    st.error("🔒 Accès refusé. Ce serveur est privé.")[span_1](start_span)[span_1](end_span)
+    st.write("Vous n'avez pas l'autorisation d'accéder aux calculs de l'Oracle.")[span_2](start_span)[span_2](end_span)
     st.stop()
 
 # ==========================================
 # 🌐 ALGORITHME ET FONCTIONS DE CALCUL
 # ==========================================
 def obtenir_heure_niger():
-    return datetime.utcnow() + timedelta(hours=1)
+    # UTC+1 pour l'heure du Niger
+    return datetime.now(timezone.utc) + timedelta(hours=1)
 
 def determiner_carte_par_ordre_absolu(index_jeu):
-    if not SUITE_CHIFFRES or index_jeu <= 0: return None
+    if not SUITE_CHIFFRES or index_jeu <= 0:
+        return None
     enseignes = ["Pique ♠️", "Trèfle ♣️", "Carreau ♦️", "Cœur ♥️"]
     index_chiffre = (index_jeu - 1) % len(SUITE_CHIFFRES)
     chiffre_extrait = SUITE_CHIFFRES[index_chiffre]
@@ -48,37 +54,47 @@ def determiner_carte_par_ordre_absolu(index_jeu):
 
 def calculer_resultat_tour(prochain_tour):
     chiffres_tour = [int(c) for c in str(prochain_tour) if c != '0']
-    if not chiffres_tour: return None
-    if len(chiffres_tour) < 2: paires = [(chiffres_tour, chiffres_tour)]
-    else: paires = list(itertools.combinations(chiffres_tour, 2))
+    if not chiffres_tour:
+        return None
+    
+    if len(chiffres_tour) < 2:
+        paires = [(chiffres_tour[0], chiffres_tour[0])]
+    else:
+        paires = list(itertools.combinations(chiffres_tour, 2))
     
     positions_traitees = set()
     for c1, c2 in paires:
         debut, fin = min(c1, c2), max(c1, c2)
-        for pos in range(debut, fin + 1): positions_traitees.add(pos)
+        for pos in range(debut, fin + 1):
+            positions_traitees.add(pos)
         
     cartes_trouvees = []
     for pos in sorted(positions_traitees):
         if pos in TABLE_EXTRACTION:
             carte = determiner_carte_par_ordre_absolu(TABLE_EXTRACTION[pos])
-            if carte: cartes_trouvees.append(carte)
+            if carte:
+                cartes_trouvees.append(carte)
             
     if cartes_trouvees:
         compteur = Counter(cartes_trouvees)
         gagnant = compteur.most_common(1)
-        if gagnant and len(gagnant) > 0:
-            res_carte, nb = gagnant[0]
+        if gagnant:
+            res_carte, _ = gagnant[0]
             return res_carte
     return None
 
 def obtenir_prochain_jeu_divisible_par_4():
     maintenant = obtenir_heure_niger()
     debut_jeux = maintenant.replace(hour=1, minute=0, second=0, microsecond=0)
-    if maintenant < debut_jeux: debut_jeux -= timedelta(days=1)
+    if maintenant < debut_jeux:
+        debut_jeux -= timedelta(days=1)
     minute_actuelle = int((maintenant - debut_jeux).total_seconds() / 60) + 1
     prochain_tour = minute_actuelle + (4 - (minute_actuelle % 4)) if minute_actuelle % 4 != 0 else minute_actuelle + 4
     return prochain_tour
 
+# ==========================================
+# 📊 EXÉCUTION ET AFFICHAGE DES RÉSULTATS
+# ==========================================
 # 1️⃣ Calcul du numéro de tour réel
 tour_reel = obtenir_prochain_jeu_divisible_par_4()
 
@@ -92,4 +108,5 @@ carte_recommandee = calculer_resultat_tour(tour_loi_appliquee)
 if carte_recommandee:
     st.success(f"### 🃏 {carte_recommandee}")
 else:
-    st.write("🔄 Analyse en cours...")
+    st.warning("🔄 Analyse en cours...")
+    
