@@ -50,8 +50,8 @@ def calculer_resultat_tour(prochain_tour):
     if cartes_trouvees:
         compteur = Counter(cartes_trouvees)
         gagnant = compteur.most_common(1)
-        if gagnant:
-            res_carte, nb = gagnant
+        if gagnant and len(gagnant) > 0:
+            res_carte, nb = gagnant[0]
             return res_carte
     return None
 
@@ -63,17 +63,17 @@ def obtenir_prochain_jeu_divisible_par_4():
     prochain_tour = minute_actuelle + (4 - (minute_actuelle % 4)) if minute_actuelle % 4 != 0 else minute_actuelle + 4
     return prochain_tour
 
-# 1️⃣ Calcul du tour en temps réel basé sur les 4 minutes
+# 1️⃣ Calcul automatique du tour
 tour_reel = obtenir_prochain_jeu_divisible_par_4()
 
-# 2️⃣ Application stricte de la LOI DE MOINS 1 en secret
+# 2️⃣ Application stricte de la LOI DE MOINS 1
 tour_loi_appliquee = tour_reel - 1
 
-# 3️⃣ Calcul final de la carte sur le tour décalé
+# 3️⃣ Extraction de la carte
 carte_recommandee = calculer_resultat_tour(tour_loi_appliquee)
 
-# Affichage de la carte pour vos amis à l'écran
+# Affichage UNIQUE et propre à l'écran
 if carte_recommandee:
     st.write(f"## 🃏 {carte_recommandee}")
 else:
-    st.write("🔄")
+    st.write("## 🔄 Analyse en cours...")
