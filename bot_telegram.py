@@ -2,19 +2,27 @@ import asyncio
 import itertools
 import threading
 import os
+import re
 import logging
 from collections import Counter
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from flask import Flask
+
 from telegram.ext import ApplicationBuilder
+from telethon import TelegramClient, events
+from telethon.sessions import StringSession
 
 # Configuration des logs
 logging.basicConfig(level=logging.INFO)
 
-# 🔑 Configuration
+# 🔑 Configuration API
 TOKEN_TELEGRAM = "8434603595:AAG5hkLGyXppK805olMcOTGxo0p3E2ATJ80"
 CHAT_ID = "-1003983624932"
+
+API_ID = 36011582
+API_HASH = "1a59e486bbe7867994bae4450a958f7c"
+SESSION_STRING = os.environ.get("TELEGRAM_SESSION", "")
 
 SUITE_CHIFFRES = "861376246795151132650663323124341032236145510480515016240000000000"
 
@@ -28,14 +36,16 @@ TABLE_EXTRACTION = {
     61: 0, 62: 0, 63: 0, 64: 0, 65: 0, 66: 0
 }
 
-# --- Serveur HTTP Flask ---
+# Historique des prédictions {numero_jeu: {"message_id": int, "carte": str, "heure": str}}
+predictions_histoire = {}
+
+# Application Flask
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Oracle Bot is Online and Running!", 200
+    return "Oracle Bot (Validation Joueur uniquement) est actif !", 200
 
-# --- Logique de calcul ---
 def obtenir_heure_niger():
     return datetime.now(ZoneInfo("Africa/Niamey"))
 
@@ -73,11 +83,70 @@ def obtenir_prochain_jeu_divisible_par_4():
     minute_actuelle = int((maintenant - debut_jeux).total_seconds() / 60) + 1
     return minute_actuelle + (4 - (minute_actuelle % 4)) if minute_actuelle % 4 != 0 else minute_actuelle + 4
 
+async def demarrer_ecouteur_resultats(bot_app):
+    if not SESSION_STRING:
+        logging.warning("TELEGRAM_SESSION absent. L'écouteur automatique est désactivé.")
+        return
+
+    telethon_client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
+    await telethon_client.start()
+    logging.info("Écouteur Telethon connecté.")
+
+    @telethon_client.on(events.NewMessage(chats='statistika_baccara'))
+    async def traiter_nouveau_resultat(event):
+        texte = event.message.message
+        
+        # Extraction du numéro de jeu ex: #N1237
+        match_jeu = re.search(r'#N(\d+)', texte)
+        if match_jeu:
+            num_jeu = int(match_jeu.group(1))
+            
+            if num_jeu in predictions_histoire:
+                info_pred = predictions_histoire[num_jeu]
+                carte_recommandee = info_pred["carte"]
+                
+                # Récupérer uniquement les cartes du Joueur (entre les premières parenthèses avant le tiret)
+                # Exemple texte : #N1237. ✅1(Q♣️ 3♦️ 8♣️) - 0(8♥️ 4♠️ 8♣)
+                match_joueur = re.search(r'\((.*?)\)', texte)
+                cartes_joueur = match_joueur.group(1) if match_joueur else ""
+                
+                # Extraction de la valeur et de l'enseigne recherchées
+                valeur_carte = carte_recommandee.split(" ")[0]       # Ex: '6'
+                symbole_enseigne = carte_recommandee.split(" ")[-1] # Ex: '♣️'
+
+                # Vérification restreinte uniquement à la main du Joueur
+                est_gagne = (valeur_carte in cartes_joueur) and (symbole_enseigne in cartes_joueur)
+                
+                statut_texte = "✅ **VALIDÉ (GAGNÉ SUR JOUEUR)**" if est_gagne else "❌ **NON VALIDÉ (PERDU SUR JOUEUR)**"
+                
+                nouveau_message = (
+                    f"🔮 **ORACLE PREDICTION**\n"
+                    f"🕒 Heure : `{info_pred['heure']}`\n\n"
+                    f"🎮 **Numéro du jeu : {num_jeu}**\n"
+                    f"🃏 **Carte recommandée : {carte_recommandee}**\n\n"
+                    f"📊 **Résultat : {statut_texte}**"
+                )
+                
+                try:
+                    await bot_app.bot.edit_message_text(
+                        chat_id=CHAT_ID,
+                        message_id=info_pred["message_id"],
+                        text=nouveau_message,
+                        parse_mode="Markdown"
+                    )
+                    logging.info(f"Mise à jour jeu {num_jeu} (Joueur uniquement) : {statut_texte}")
+                except Exception as err:
+                    logging.error(f"Erreur lors de l'édition du message {num_jeu}: {err}")
+
+    await telethon_client.run_until_disconnected()
+
 async def boucle_envoi_telegram():
     app_bot = ApplicationBuilder().token(TOKEN_TELEGRAM).build()
     await app_bot.initialize()
     await app_bot.start()
     
+    asyncio.create_task(demarrer_ecouteur_resultats(app_bot))
+
     dernier_tour_envoye = None
     derniere_minute_envoyee = None
     logging.info("Boucle d'envoi Telegram démarrée.")
@@ -98,10 +167,18 @@ async def boucle_envoi_telegram():
                     f"🔮 **ORACLE PREDICTION**\n"
                     f"🕒 Heure : `{heure_actuelle}`\n\n"
                     f"🎮 **Numéro du jeu : {tour_loi_appliquee}**\n"
-                    f"🃏 **Carte recommandée : {carte}**"
+                    f"🃏 **Carte recommandée : {carte}**\n\n"
+                    f"⏳ *En attente du résultat du Joueur...*"
                 )
 
-                await app_bot.bot.send_message(chat_id=CHAT_ID, text=message, parse_mode="Markdown")
+                msg_envoye = await app_bot.bot.send_message(chat_id=CHAT_ID, text=message, parse_mode="Markdown")
+                
+                predictions_histoire[tour_loi_appliquee] = {
+                    "message_id": msg_envoye.message_id,
+                    "carte": carte,
+                    "heure": heure_actuelle
+                }
+                
                 logging.info(f"Message envoyé pour le jeu {tour_loi_appliquee}")
                 
                 dernier_tour_envoye = tour_loi_appliquee
