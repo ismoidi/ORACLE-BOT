@@ -6,6 +6,8 @@ import itertools
 # Configuration de base épurée pour la Mini-App Telegram
 st.set_page_config(page_title="Oracle", page_icon="🔮", layout="centered")
 
+# 🔒 Clé de sécurité maîtresse du site
+CLE_ACCES_SECRETE = "oracle2026"
 SUITE_CHIFFRES = "861376246795151132650663323124341032236145510480515016240000000000"
 
 TABLE_EXTRACTION = {
@@ -18,6 +20,20 @@ TABLE_EXTRACTION = {
     61: 0, 62: 0, 63: 0, 64: 0, 65: 0, 66: 0
 }
 
+# ==========================================
+# 🛡️ VÉRIFICATION DE LA SÉCURITÉ DU LIEN
+# ==========================================
+parametres = st.query_params
+code_entre = parametres.get("code", "")
+
+if code_entre != CLE_ACCES_SECRETE:
+    st.error("🔒 Accès refusé. Ce serveur est privé.")
+    st.write("Vous n'avez pas l'autorisation d'accéder aux calculs de l'Oracle.")
+    st.stop()
+
+# ==========================================
+# 🌐 ALGORITHME ET FONCTIONS DE CALCUL
+# ==========================================
 def obtenir_heure_niger():
     return datetime.utcnow() + timedelta(hours=1)
 
@@ -69,7 +85,7 @@ tour_reel = obtenir_prochain_jeu_divisible_par_4()
 # 2️⃣ Application de la loi de moins 1
 tour_loi_appliquee = tour_reel - 1
 
-# 3️⃣ Affichage clair à l'écran
+# 3️⃣ Affichage sécurisé des données
 st.info(f"🎮 **Numéro du jeu : {tour_loi_appliquee}**")
 
 carte_recommandee = calculer_resultat_tour(tour_loi_appliquee)
