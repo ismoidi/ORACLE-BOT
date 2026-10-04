@@ -2,10 +2,15 @@ import asyncio
 import itertools
 import threading
 import os
+import logging
 from collections import Counter
-from datetime import datetime, timezone, timedelta
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from flask import Flask
 from telegram.ext import ApplicationBuilder
+
+# Configuration des logs
+logging.basicConfig(level=logging.INFO)
 
 # 🔑 Configuration
 TOKEN_TELEGRAM = "8434603595:AAG5hkLGyXppK805olMcOTGxo0p3E2ATJ80"
@@ -23,20 +28,17 @@ TABLE_EXTRACTION = {
     61: 0, 62: 0, 63: 0, 64: 0, 65: 0, 66: 0
 }
 
-# Serveur HTTP Flask pour valider le check d'activité de Render
+# --- Serveur HTTP Flask ---
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Oracle Bot Active", 200
+    return "Oracle Bot is Online and Running!", 200
 
-def run_flask():
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
-
-# Fonctions algorithmiques
+# --- Logique de calcul ---
 def obtenir_heure_niger():
-    return datetime.now(timezone.utc) + timedelta(hours=1)
+    # Fuseau horaire exact du Niger (UTC+1)
+    return datetime.now(ZoneInfo("Africa/Niamey"))
 
 def determiner_carte_par_ordre_absolu(index_jeu):
     if not SUITE_CHIFFRES or index_jeu <= 0:
@@ -68,29 +70,53 @@ def obtenir_prochain_jeu_divisible_par_4():
     maintenant = obtenir_heure_niger()
     debut_jeux = maintenant.replace(hour=1, minute=0, second=0, microsecond=0)
     if maintenant < debut_jeux:
-        debut_jeux -= timedelta(days=1)
+        debut_jeux = debut_jeux - timedelta(days=1)
     minute_actuelle = int((maintenant - debut_jeux).total_seconds() / 60) + 1
     return minute_actuelle + (4 - (minute_actuelle % 4)) if minute_actuelle % 4 != 0 else minute_actuelle + 4
 
-async def envoyer_jeu_automatique():
+async def boucle_envoi_telegram():
     app_bot = ApplicationBuilder().token(TOKEN_TELEGRAM).build()
+    await app_bot.initialize()
+    await app_bot.start()
+    
     dernier_tour_envoye = None
+    logging.info("Boucle d'envoi Telegram démarrée.")
+
     while True:
-        tour_reel = obtenir_prochain_jeu_divisible_par_4()
-        tour_loi_appliquee = tour_reel - 1
-        if tour_loi_appliquee != dernier_tour_envoye:
-            carte = calculer_resultat_tour(tour_loi_appliquee) or "Analyse en cours..."
-            heure_actuelle = obtenir_heure_niger().strftime("%H:%M:%S")
-            message = (
-                f"🔮 **ORACLE PREDICTION**\n"
-                f"🕒 Heure : `{heure_actuelle}`\n\n"
-                f"🎮 **Numéro du jeu : {tour_loi_appliquee}**\n"
-                f"🃏 **Carte recommandée : {carte}**"
-            )
-            await app_bot.bot.send_message(chat_id=CHAT_ID, text=message, parse_mode="Markdown")
-            dernier_tour_envoye = tour_loi_appliquee
+        try:
+            tour_reel = obtenir_prochain_jeu_divisible_par_4()
+            tour_loi_appliquee = tour_reel - 1
+
+            if tour_loi_appliquee != dernier_tour_envoye:
+                carte = calculer_resultat_tour(tour_loi_appliquee) or "Analyse en cours..."
+                heure_actuelle = obtenir_heure_niger().strftime("%H:%M:%S")
+
+                message = (
+                    f"🔮 **ORACLE PREDICTION**\n"
+                    f"🕒 Heure : `{heure_actuelle}`\n\n"
+                    f"🎮 **Numéro du jeu : {tour_loi_appliquee}**\n"
+                    f"🃏 **Carte recommandée : {carte}**"
+                )
+
+                await app_bot.bot.send_message(chat_id=CHAT_ID, text=message, parse_mode="Markdown")
+                logging.info(f"Message envoyé pour le jeu {tour_loi_appliquee}")
+                dernier_tour_envoye = tour_loi_appliquee
+
+        except Exception as e:
+            logging.error(f"Erreur durant l'envoi : {e}")
+
         await asyncio.sleep(10)
 
+def lancer_bot_background():
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(boucle_envoi_telegram())
+
 if __name__ == '__main__':
-    threading.Thread(target=run_flask, daemon=True).start()
-    asyncio.run(envoyer_jeu_automatique())
+    # Démarrage du thread d'arrière-plan pour Telegram
+    t = threading.Thread(target=lancer_bot_background, daemon=True)
+    t.start()
+    
+    # Démarrage du serveur Flask principal
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
