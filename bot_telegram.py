@@ -1,10 +1,13 @@
 import asyncio
 import itertools
+import threading
+import os
 from collections import Counter
 from datetime import datetime, timezone, timedelta
+from flask import Flask
 from telegram.ext import ApplicationBuilder
 
-# 🔑 Vos identifiants
+# 🔑 Configuration
 TOKEN_TELEGRAM = "8434603595:AAG5hkLGyXppK805olMcOTGxo0p3E2ATJ80"
 CHAT_ID = "-1003983624932"
 
@@ -20,6 +23,18 @@ TABLE_EXTRACTION = {
     61: 0, 62: 0, 63: 0, 64: 0, 65: 0, 66: 0
 }
 
+# Serveur HTTP Flask pour valider le check d'activité de Render
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Oracle Bot Active", 200
+
+def run_flask():
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
+
+# Fonctions algorithmiques
 def obtenir_heure_niger():
     return datetime.now(timezone.utc) + timedelta(hours=1)
 
@@ -37,31 +52,16 @@ def calculer_resultat_tour(prochain_tour):
     chiffres_tour = [int(c) for c in str(prochain_tour) if c != '0']
     if not chiffres_tour:
         return None
-    
-    if len(chiffres_tour) < 2:
-        paires = [(chiffres_tour[0], chiffres_tour[0])]
-    else:
-        paires = list(itertools.combinations(chiffres_tour, 2))
-    
+    paires = [(chiffres_tour[0], chiffres_tour[0])] if len(chiffres_tour) < 2 else list(itertools.combinations(chiffres_tour, 2))
     positions_traitees = set()
     for c1, c2 in paires:
-        debut, fin = min(c1, c2), max(c1, c2)
-        for pos in range(debut, fin + 1):
+        for pos in range(min(c1, c2), max(c1, c2) + 1):
             positions_traitees.add(pos)
-        
-    cartes_trouvees = []
-    for pos in sorted(positions_traitees):
-        if pos in TABLE_EXTRACTION:
-            carte = determiner_carte_par_ordre_absolu(TABLE_EXTRACTION[pos])
-            if carte:
-                cartes_trouvees.append(carte)
-            
+    cartes_trouvees = [determiner_carte_par_ordre_absolu(TABLE_EXTRACTION[pos]) for pos in sorted(positions_traitees) if pos in TABLE_EXTRACTION and determiner_carte_par_ordre_absolu(TABLE_EXTRACTION[pos])]
     if cartes_trouvees:
-        compteur = Counter(cartes_trouvees)
-        gagnant = compteur.most_common(1)
+        gagnant = Counter(cartes_trouvees).most_common(1)
         if gagnant:
-            res_carte, _ = gagnant[0]
-            return res_carte
+            return gagnant[0][0]
     return None
 
 def obtenir_prochain_jeu_divisible_par_4():
@@ -70,32 +70,27 @@ def obtenir_prochain_jeu_divisible_par_4():
     if maintenant < debut_jeux:
         debut_jeux -= timedelta(days=1)
     minute_actuelle = int((maintenant - debut_jeux).total_seconds() / 60) + 1
-    prochain_tour = minute_actuelle + (4 - (minute_actuelle % 4)) if minute_actuelle % 4 != 0 else minute_actuelle + 4
-    return prochain_tour
+    return minute_actuelle + (4 - (minute_actuelle % 4)) if minute_actuelle % 4 != 0 else minute_actuelle + 4
 
 async def envoyer_jeu_automatique():
-    app = ApplicationBuilder().token(TOKEN_TELEGRAM).build()
+    app_bot = ApplicationBuilder().token(TOKEN_TELEGRAM).build()
     dernier_tour_envoye = None
-
     while True:
         tour_reel = obtenir_prochain_jeu_divisible_par_4()
         tour_loi_appliquee = tour_reel - 1
-
         if tour_loi_appliquee != dernier_tour_envoye:
             carte = calculer_resultat_tour(tour_loi_appliquee) or "Analyse en cours..."
             heure_actuelle = obtenir_heure_niger().strftime("%H:%M:%S")
-
             message = (
                 f"🔮 **ORACLE PREDICTION**\n"
                 f"🕒 Heure : `{heure_actuelle}`\n\n"
                 f"🎮 **Numéro du jeu : {tour_loi_appliquee}**\n"
                 f"🃏 **Carte recommandée : {carte}**"
             )
-
-            await app.bot.send_message(chat_id=CHAT_ID, text=message, parse_mode="Markdown")
+            await app_bot.bot.send_message(chat_id=CHAT_ID, text=message, parse_mode="Markdown")
             dernier_tour_envoye = tour_loi_appliquee
-
         await asyncio.sleep(10)
 
 if __name__ == '__main__':
+    threading.Thread(target=run_flask, daemon=True).start()
     asyncio.run(envoyer_jeu_automatique())
