@@ -9,11 +9,7 @@ import telebot
 # CONFIGURATION
 # ---------------------------------------------------------
 TELEGRAM_TOKEN = "8434603595:AAG5hkLGyXppK805olMcOTGxo0p3E2ATJ80"
-
-# ⚠️ REMPLACEZ CETTE VALEUR PAR L'ID DE VOTRE CANAL OU GROUPE TELEGRAM
-# (Exemple: -1001234567890 ou votre ID personnel)
 CHAT_ID_CIBLE = "-1003983624932"
-
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 app = Flask(__name__)
@@ -59,8 +55,15 @@ def appliquer_strategie(numero_jeu):
   return carte_finale
 
 
+def extraire_enseigne_seule(carte_complete):
+  # Extrait uniquement l'enseigne/couleur (ex: "3 de Trèfle ♣️" -> "Trèfle ♣️")
+  if " de " in carte_complete:
+    return carte_complete.split(" de ")[1]
+  return carte_complete
+
+
 # ---------------------------------------------------------
-# CALCUL HEURE NIGER (UTC+1) ET ENVOI 3 MIN AVANT
+# CALCUL HEURE NIGER (UTC+1) ET ENVOI AUTOMATIQUE
 # ---------------------------------------------------------
 def calculer_jeu_actuel_niger():
   tz_niger = timezone(timedelta(hours=1))
@@ -82,19 +85,23 @@ def boucle_envoi_automatique():
   while True:
     jeu_actuel, heure_niger = calculer_jeu_actuel_niger()
 
-    # Le jeu qui aura lieu dans 3 minutes
+    # Le jeu divisible par 4 qui aura lieu dans 3 minutes
     jeu_cible = ((jeu_actuel + 3 - 1) % 1440) + 1
 
-    # Envoi si le jeu cible est divisible par 4
+    # Analyse basée sur le jeu divisible par 4
     if jeu_cible % 4 == 0 and jeu_cible != dernier_jeu_envoye:
-      carte = appliquer_strategie(jeu_cible)
+      carte_complete = appliquer_strategie(jeu_cible)
+      enseigne_seule = extraire_enseigne_seule(carte_complete)
+
+      # Numéro du jeu affiché : le jeu qui précède (ex: 979 pour le jeu 980)
+      jeu_affiche = jeu_cible - 1 if jeu_cible > 1 else 1440
 
       message = (
           f"🚀 **PRÉDICTION AUTOMATIQUE**\n"
-          f"🎮 **Jeu à venir :** {jeu_cible} (Divisible par 4)\n"
+          f"🎮 **Jeu à venir :** {jeu_affiche}\n"
           f"⏰ **Heure d'envoi :** {heure_niger.strftime('%H:%M')} (3 min"
           " avant)\n"
-          f"🎯 **Carte à jouer :** {carte}"
+          f"🎯 **Carte à jouer :** {enseigne_seule}"
       )
 
       try:
@@ -102,7 +109,7 @@ def boucle_envoi_automatique():
           bot.send_message(CHAT_ID_CIBLE, message, parse_mode="Markdown")
           print(
               f"[{heure_niger.strftime('%H:%M:%S')}] Prédiction envoyée pour"
-              f" le jeu {jeu_cible}"
+              f" le jeu {jeu_affiche} (calculé sur {jeu_cible})"
           )
           dernier_jeu_envoye = jeu_cible
       except Exception as e:
@@ -128,9 +135,12 @@ def traiter_message(message):
   texte = message.text.strip()
   if texte.isdigit():
     numero_jeu = int(texte)
-    carte = appliquer_strategie(numero_jeu)
+    carte_complete = appliquer_strategie(numero_jeu)
+    enseigne_seule = extraire_enseigne_seule(carte_complete)
     bot.reply_to(
-        message, f"🎯 Pour le jeu {numero_jeu}, la carte à jouer est : {carte}"
+        message,
+        f"🎯 Pour le jeu {numero_jeu}, la couleur à jouer est :"
+        f" {enseigne_seule}",
     )
 
 
