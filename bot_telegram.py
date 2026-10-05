@@ -1,4 +1,10 @@
+import os
 from datetime import datetime
+import telebot
+
+# Remplacez par votre vrai TOKEN Telegram si nécessaire
+TOKEN = os.getenv("TELEGRAM_TOKEN", "VOTRE_TOKEN_ICI")
+bot = telebot.TeleBot(TOKEN)
 
 # Suite exacte de 52! (68 chiffres)
 SUITE_CHIFFRES = (
@@ -18,7 +24,6 @@ def determiner_carte_par_position(position):
 
 
 def appliquer_strategie(numero_jeu):
-  # Extraction des chiffres non nuls
   chiffres = [int(c) for c in str(numero_jeu) if c != "0"]
 
   cartes_detectees = []
@@ -41,3 +46,27 @@ def appliquer_strategie(numero_jeu):
 
   carte_finale, _ = determiner_carte_par_position(position_finale)
   return carte_finale
+
+
+@bot.message_handler(commands=["start", "help"])
+def send_welcome(message):
+  bot.reply_to(
+      message,
+      "Bot de prédiction actif ! Envoyez un numéro de jeu (ex: 724, 756).",
+  )
+
+
+@bot.message_handler(func=lambda message: True)
+def traiter_message(message):
+  if message.text.isdigit():
+    numero_jeu = int(message.text)
+    carte = appliquer_strategie(numero_jeu)
+    bot.reply_to(
+        message, f"🎯 Pour le jeu {numero_jeu}, la carte à jouer est : {carte}"
+    )
+  else:
+    bot.reply_to(message, "Veuillez envoyer un numéro de jeu valide (chiffres).")
+
+
+if __name__ == "__main__":
+  bot.infinity_polling()
