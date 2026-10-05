@@ -1,59 +1,43 @@
-import os
-import re
-import asyncio
-import telegram
-from telethon import TelegramClient, events
-from telethon.sessions import StringSession
+from datetime import datetime
 
-# 1. Configuration des identifiants (Variables d'environnement Render)
-API_ID = int(os.getenv("API_ID", 36011582))
-API_HASH = os.getenv("API_HASH", "1a59e486bbe7867994bae4450a958f7c")
-TELEGRAM_SESSION = os.getenv("TELEGRAM_SESSION")
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-CHANNEL_ID = os.getenv("TELEGRAM_CHANNEL_ID")  # Ex: -1001234567890
-
-# 2. Initialisation des clients
-telegram_bot = telegram.Bot(token=BOT_TOKEN) if BOT_TOKEN else None
-telethon_client = TelegramClient(
-    StringSession(TELEGRAM_SESSION), API_ID, API_HASH
-) if TELEGRAM_SESSION else None
-
-# Dictionnaire mémoire pour suivre les jeux en cours (ex: {"305": "Player"})
-pending_predictions = {}
-
-# 3. Regex adaptée au format exact du canal : #N305. ✅7(A♥ 6♣) - 6(6♦ J♥)
-RESULT_PATTERN = re.compile(
-    r'#N(?P<game>\d+)\.\s*(?P<player_win>✅)?(?P<player_score>\d+)\(.*?\)\s*-\s*(?P<banker_win>✅)?(?P<banker_score>\d+)'
+# Suite exacte de 52! (68 chiffres)
+SUITE_CHIFFRES = (
+    "80658175170943878571660636856403766975289505440883277824000000000000"
 )
 
-# 4. Écouteur de messages Telethon sur le canal source
-if telethon_client:
-    @telethon_client.on(events.NewMessage(chats='statistika_baccara'))
-    async def handle_new_result(event):
-        text = event.raw_text
-        match = RESULT_PATTERN.search(text)
-        
-        if not match:
-            return  # Message non conforme ignoré
 
-        game_id = match.group('game')
-        player_won = bool(match.group('player_win'))  # True si ✅ est côté Joueur
-        
-        # Validation du jeu s'il est dans la liste des prédictions
-        if game_id in pending_predictions:
-            prediction = pending_predictions.pop(game_id)
-            
-            if player_won:
-                result_msg = f"🎮 **Jeu #{game_id}**\n✅ **Résultat : GAGNÉ !** (Joueur victorieux)"
-            else:
-                result_msg = f"🎮 **Jeu #{game_id}**\n❌ **Résultat : PERDU !**"
-                
-            if telegram_bot and CHANNEL_ID:
-                await telegram_bot.send_message(chat_id=CHANNEL_ID, text=result_msg, parse_mode='Markdown')
+def determiner_carte_par_position(position):
+  enseignes = ["Pique ♠️", "Trèfle ♣️", "Carreau ♦️", "Cœur ♥️"]
+  index_reel = (position - 1) % len(SUITE_CHIFFRES)
+  chiffre = SUITE_CHIFFRES[index_reel]
 
-# 5. Fonction pour publier une nouvelle prédiction
-async def send_prediction(game_id: str, choice: str = "Player"):
-    pending_predictions[game_id] = choice
-    msg = f"🔮 **Prédiction Jeu #{game_id}**\n🎯 Mise conseillée : **{choice}**"
-    if telegram_bot and CHANNEL_ID:
-        await telegram_bot.send_message(chat_id=CHANNEL_ID, text=msg, parse_mode='Markdown')
+  valeur = "10" if chiffre == "0" else chiffre
+  enseigne = enseignes[index_reel % 4]
+
+  return f"{valeur} de {enseigne}", enseigne
+
+
+def appliquer_strategie(numero_jeu):
+  # Extraction des chiffres non nuls
+  chiffres = [int(c) for c in str(numero_jeu) if c != "0"]
+
+  cartes_detectees = []
+  couleurs_detectees = []
+
+  # 1. Détection des cartes par dispatching
+  for c in chiffres:
+    carte, couleur = determiner_carte_par_position(c)
+    cartes_detectees.append(carte)
+    couleurs_detectees.append(couleur)
+
+  # 2. Si toutes les cartes sont identiques
+  if len(set(cartes_detectees)) == 1:
+    return cartes_detectees[0]
+
+  # 3. Si différentes -> division par le nombre de couleurs uniques
+  nb_couleurs_uniques = len(set(couleurs_detectees))
+  jeu_divise = numero_jeu // nb_couleurs_uniques
+  position_finale = ((jeu_divise - 1) % len(SUITE_CHIFFRES)) + 1
+
+  carte_finale, _ = determiner_carte_par_position(position_finale)
+  return carte_finale
