@@ -1,36 +1,30 @@
 import os
 import threading
-from datetime import datetime
+import time
+from datetime import datetime, timedelta, timezone
 from flask import Flask
 import telebot
 
 # ---------------------------------------------------------
-# 1. SERVEUR FLASK POUR GARDER RENDER ACTIF
-# ---------------------------------------------------------
-app = Flask(__name__)
-
-
-@app.route("/")
-def home():
-  return "Bot Telegram actif et opérationnel !"
-
-
-def run_flask():
-  port = int(os.environ.get("PORT", 10000))
-  app.run(host="0.0.0.0", port=port)
-
-
-# ---------------------------------------------------------
-# 2. CONFIGURATION DU BOT TELEGRAM
+# CONFIGURATION
 # ---------------------------------------------------------
 TELEGRAM_TOKEN = "8434603595:AAG5hkLGyXppK805olMcOTGxo0p3E2ATJ80"
+
+# ⚠️ REMPLACEZ CETTE VALEUR PAR L'ID DE VOTRE CANAL OU GROUPE TELEGRAM
+# (Exemple: -1001234567890 ou votre ID personnel)
+CHAT_ID_CIBLE = "VOTRE_CHAT_ID_ICI"
+
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
+app = Flask(__name__)
 
 SUITE_CHIFFRES = (
     "80658175170943878571660636856403766975289505440883277824000000000000"
 )
 
 
+# ---------------------------------------------------------
+# STRATÉGIE MATHÉMATIQUE
+# ---------------------------------------------------------
 def determiner_carte_par_position(position):
   enseignes = ["Pique ♠️", "Trèfle ♣️", "Carreau ♦️", "Cœur ♥️"]
   index_reel = (position - 1) % len(SUITE_CHIFFRES)
@@ -53,11 +47,9 @@ def appliquer_strategie(numero_jeu):
     cartes_detectees.append(carte)
     couleurs_detectees.append(couleur)
 
-  # Si toutes les cartes sont identiques
   if len(set(cartes_detectees)) == 1:
     return cartes_detectees[0]
 
-  # Si cartes différentes -> division par le nombre de couleurs uniques
   nb_couleurs_uniques = len(set(couleurs_detectees))
   jeu_divise = numero_jeu // nb_couleurs_uniques
   position_finale = ((jeu_divise - 1) % len(SUITE_CHIFFRES)) + 1
@@ -66,10 +58,67 @@ def appliquer_strategie(numero_jeu):
   return carte_finale
 
 
-@bot.message_handler(commands=["start", "help"])
-def send_welcome(message):
+# ---------------------------------------------------------
+# CALCUL HEURE NIGER (UTC+1) ET ENVOI 3 MIN AVANT
+# ---------------------------------------------------------
+def calculer_jeu_actuel_niger():
+  tz_niger = timezone(timedelta(hours=1))
+  maintenant = datetime.now(tz_niger)
+
+  heure = maintenant.hour
+  minute = maintenant.minute
+
+  # Calcul du jeu actuel (Jeu 1 à 01h00 du matin)
+  minutes_depuis_01h = ((heure - 1) % 24) * 60 + minute
+  jeu_actuel = minutes_depuis_01h + 1
+
+  return jeu_actuel, maintenant
+
+
+def boucle_envoi_automatique():
+  dernier_jeu_envoye = None
+
+  while True:
+    jeu_actuel, heure_niger = calculer_jeu_actuel_niger()
+
+    # Le jeu qui aura lieu dans 3 minutes
+    jeu_cible = ((jeu_actuel + 3 - 1) % 1440) + 1
+
+    # Envoi si le jeu cible est divisible par 4
+    if jeu_cible % 4 == 0 and jeu_cible != dernier_jeu_envoye:
+      carte = appliquer_strategie(jeu_cible)
+
+      message = (
+          f"🚀 **PRÉDICTION AUTOMATIQUE**\n"
+          f"🎮 **Jeu à venir :** {jeu_cible} (Divisible par 4)\n"
+          f"⏰ **Heure d'envoi :** {heure_niger.strftime('%H:%M')} (3 min"
+          " avant)\n"
+          f"🎯 **Carte à jouer :** {carte}"
+      )
+
+      try:
+        if CHAT_ID_CIBLE != "VOTRE_CHAT_ID_ICI":
+          bot.send_message(CHAT_ID_CIBLE, message, parse_mode="Markdown")
+          print(
+              f"[{heure_niger.strftime('%H:%M:%S')}] Prédiction envoyée pour"
+              f" le jeu {jeu_cible}"
+          )
+          dernier_jeu_envoye = jeu_cible
+      except Exception as e:
+        print(f"Erreur lors de l'envoi : {e}")
+
+    time.sleep(10)
+
+
+# ---------------------------------------------------------
+# COMMANDES & SERVEUR FLASK
+# ---------------------------------------------------------
+@bot.message_handler(commands=["id"])
+def get_chat_id(message):
   bot.reply_to(
-      message, "🔮 Bot actif ! Envoyez un numéro de jeu (ex: 724, 756)."
+      message,
+      f"L'ID de ce tchat/canal est : `{message.chat.id}`",
+      parse_mode="Markdown",
   )
 
 
@@ -82,19 +131,25 @@ def traiter_message(message):
     bot.reply_to(
         message, f"🎯 Pour le jeu {numero_jeu}, la carte à jouer est : {carte}"
     )
-  else:
-    bot.reply_to(message, "Veuillez envoyer un numéro de jeu valide (chiffres).")
 
 
-# ---------------------------------------------------------
-# 3. DÉMARRAGE SIMULTANÉ (FLASK + TELEGRAM)
-# ---------------------------------------------------------
+@app.route("/")
+def home():
+  return "Bot Telegram actif (Heure Niger UTC+1 - 3 min anticipation) !"
+
+
+def run_flask():
+  port = int(os.environ.get("PORT", 10000))
+  app.run(host="0.0.0.0", port=port)
+
+
 if __name__ == "__main__":
-  # Démarrage de Flask dans un thread séparé
-  t = threading.Thread(target=run_flask)
-  t.daemon = True
-  t.start()
+  t_flask = threading.Thread(target=run_flask)
+  t_flask.daemon = True
+  t_flask.start()
 
-  # Démarrage de la boucle du bot Telegram
+  t_auto = threading.Thread(target=boucle_envoi_automatique)
+  t_auto.daemon = True
+  t_auto.start()
+
   bot.infinity_polling(timeout=10, long_polling_timeout=5)
-               
