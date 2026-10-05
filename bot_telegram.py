@@ -87,9 +87,9 @@ def boucle_envoi_automatique():
     # Le jeu qui se déroule exactement 3 minutes après la minute actuelle
     jeu_dans_3min = ((jeu_actuel + 3 - 1) % 1440) + 1
 
-    # On vérifie si ce jeu dans 3 minutes est un jeu divisible par 4
+    # Vérification si ce jeu dans 3 minutes est divisible par 4
     if jeu_dans_3min % 4 == 0 and jeu_dans_3min != dernier_jeu_envoye:
-      # La prédiction est calculée sur le jeu divisible par 4
+      # Calcul mathématique basé sur le jeu divisible par 4
       carte_complete = appliquer_strategie(jeu_dans_3min)
       enseigne_seule = extraire_enseigne_seule(carte_complete)
 
