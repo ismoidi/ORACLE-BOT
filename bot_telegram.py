@@ -84,24 +84,17 @@ def boucle_envoi_automatique():
   while True:
     jeu_actuel, heure_niger = calculer_jeu_actuel_niger()
 
-    # Recherche du prochain jeu divisible par 4 qui arrive dans 3 minutes
+    # Le jeu qui se déroule exactement 3 minutes après la minute actuelle
     jeu_dans_3min = ((jeu_actuel + 3 - 1) % 1440) + 1
 
-    # Trouver le jeu divisible par 4 correspondant
-    if jeu_dans_3min % 4 == 0:
-      jeu_cible_div4 = jeu_dans_3min
-    else:
-      jeu_cible_div4 = jeu_dans_3min + (4 - (jeu_dans_3min % 4))
-      if jeu_cible_div4 > 1440:
-        jeu_cible_div4 = 4
-
-    if jeu_cible_div4 != dernier_jeu_envoye:
-      # Calcul mathématique basé sur le jeu divisible par 4
-      carte_complete = appliquer_strategie(jeu_cible_div4)
+    # On vérifie si ce jeu dans 3 minutes est un jeu divisible par 4
+    if jeu_dans_3min % 4 == 0 and jeu_dans_3min != dernier_jeu_envoye:
+      # La prédiction est calculée sur le jeu divisible par 4
+      carte_complete = appliquer_strategie(jeu_dans_3min)
       enseigne_seule = extraire_enseigne_seule(carte_complete)
 
-      # Numéro du jeu affiché dans Telegram (le jeu qui précède)
-      jeu_affiche = jeu_cible_div4 - 1 if jeu_cible_div4 > 1 else 1440
+      # Numéro du jeu affiché : le jeu qui précède (jeu_dans_3min - 1)
+      jeu_affiche = jeu_dans_3min - 1 if jeu_dans_3min > 1 else 1440
 
       message = (
           f"🚀 **PRÉDICTION AUTOMATIQUE**\n"
@@ -116,13 +109,13 @@ def boucle_envoi_automatique():
           bot.send_message(CHAT_ID_CIBLE, message, parse_mode="Markdown")
           print(
               f"[{heure_niger.strftime('%H:%M:%S')}] Prédiction envoyée pour"
-              f" {jeu_affiche}"
+              f" le jeu {jeu_affiche}"
           )
-          dernier_jeu_envoye = jeu_cible_div4
+          dernier_jeu_envoye = jeu_dans_3min
       except Exception as e:
-        print(f"Erreur lors de l'envoi : {e}")
+        print(f"Erreur d'envoi : {e}")
 
-    time.sleep(10)
+    time.sleep(5)
 
 
 # ---------------------------------------------------------
@@ -153,7 +146,7 @@ def traiter_message(message):
 
 @app.route("/")
 def home():
-  return "Bot Telegram actif (Heure Niger UTC+1 - 3 min anticipation) !"
+  return "Bot Telegram actif (Heure Niger UTC+1 - Synchronisation exacte) !"
 
 
 def run_flask():
