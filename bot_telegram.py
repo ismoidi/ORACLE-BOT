@@ -1,10 +1,13 @@
 import os
+import sys
 from datetime import datetime
 import telebot
 
-# Remplacez par votre vrai TOKEN Telegram si nécessaire
-TOKEN = os.getenv("TELEGRAM_TOKEN", "VOTRE_TOKEN_ICI")
-bot = telebot.TeleBot(TOKEN)
+# Jeton de votre bot Telegram
+TELEGRAM_TOKEN = "8434603595:AAG5hkLGyXppK805olMcOTGxo0p3E2ATJ80"
+
+# Initialisation du bot
+bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 # Suite exacte de 52! (68 chiffres)
 SUITE_CHIFFRES = (
@@ -24,12 +27,12 @@ def determiner_carte_par_position(position):
 
 
 def appliquer_strategie(numero_jeu):
+  # 1. Décomposition des chiffres non nuls
   chiffres = [int(c) for c in str(numero_jeu) if c != "0"]
 
   cartes_detectees = []
   couleurs_detectees = []
 
-  # 1. Détection des cartes par dispatching
   for c in chiffres:
     carte, couleur = determiner_carte_par_position(c)
     cartes_detectees.append(carte)
@@ -39,7 +42,7 @@ def appliquer_strategie(numero_jeu):
   if len(set(cartes_detectees)) == 1:
     return cartes_detectees[0]
 
-  # 3. Si différentes -> division par le nombre de couleurs uniques
+  # 3. Si différentes -> comptage des couleurs et division du jeu initial
   nb_couleurs_uniques = len(set(couleurs_detectees))
   jeu_divise = numero_jeu // nb_couleurs_uniques
   position_finale = ((jeu_divise - 1) % len(SUITE_CHIFFRES)) + 1
@@ -51,22 +54,26 @@ def appliquer_strategie(numero_jeu):
 @bot.message_handler(commands=["start", "help"])
 def send_welcome(message):
   bot.reply_to(
-      message,
-      "Bot de prédiction actif ! Envoyez un numéro de jeu (ex: 724, 756).",
+      message, "🔮 Bot actif ! Envoyez un numéro de jeu (ex: 724, 756)."
   )
 
 
 @bot.message_handler(func=lambda message: True)
 def traiter_message(message):
-  if message.text.isdigit():
-    numero_jeu = int(message.text)
+  texte = message.text.strip()
+  if texte.isdigit():
+    numero_jeu = int(texte)
     carte = appliquer_strategie(numero_jeu)
     bot.reply_to(
         message, f"🎯 Pour le jeu {numero_jeu}, la carte à jouer est : {carte}"
     )
   else:
-    bot.reply_to(message, "Veuillez envoyer un numéro de jeu valide (chiffres).")
+    bot.reply_to(
+        message, "Veuillez envoyer un numéro de jeu valide (uniquement chiffres)."
+    )
 
 
 if __name__ == "__main__":
-  bot.infinity_polling()
+  print("Démarrage du bot Telegram...")
+  bot.infinity_polling(timeout=10, long_polling_timeout=5)
+    
