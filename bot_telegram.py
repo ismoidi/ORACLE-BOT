@@ -51,7 +51,7 @@ if telethon_client:
             if telegram_bot and CHANNEL_ID:
                 await telegram_bot.send_message(chat_id=CHANNEL_ID, text=result_msg, parse_mode='Markdown')
 
-# 5. Fonction pour publier une nouvelle prédiction (à appeler par votre logique)
+# 5. Fonction pour publier une nouvelle prédiction
 async def send_prediction(game_id: str, choice: str = "Player"):
     pending_predictions[game_id] = choice
     msg = f"🔮 **Prédiction Jeu #{game_id}**\n🎯 Mise conseillée : **{choice}**"
