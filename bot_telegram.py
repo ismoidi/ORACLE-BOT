@@ -1,9 +1,14 @@
 import os
+import re
 import threading
 import time
 from datetime import datetime, timedelta, timezone
 from flask import Flask
 import telebot
+
+# NOUVEAU : Import de Telethon pour écouter le canal de statistiques
+import asyncio
+from telethon import TelegramClient, events
 
 # ---------------------------------------------------------
 # CONFIGURATION
@@ -11,12 +16,50 @@ import telebot
 TELEGRAM_TOKEN = "8434603595:AAG5hkLGyXppK805olMcOTGxo0p3E2ATJ80"
 CHAT_ID_CIBLE = "-1003983624932"
 
+# Identifiants API (my.telegram.org)[span_0](start_span)[span_0](end_span)
+API_ID = 36011582
+API_HASH = "1a59e486bbe7867994bae4450a958f7c"
+CANAL_SOURCE = "jokerwcbnn11280"
+
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 app = Flask(__name__)
 
 SUITE_CHIFFRES = (
     "80658175170943878571660636856403766975289505440883277824000000000000"
 )
+
+# Variable globale pour stocker les dernières statistiques reçues
+dernieres_stats = {}
+
+
+# ---------------------------------------------------------
+# ÉCOUTEUR DU CANAL STATISTIQUES (Telethon)
+# ---------------------------------------------------------
+def lancer_scrapper():
+  loop = asyncio.new_event_loop()
+  asyncio.set_event_loop(loop)
+
+  client = TelegramClient("session_stats", API_ID, API_HASH)
+
+  @client.on(events.NewMessage(chats=CANAL_SOURCE))
+  async def ecouter_canal(event):
+    global dernieres_stats
+    texte = event.message.text
+
+    match_jeu = re.search(r"#N(\d+)", texte)
+    num_jeu = match_jeu.group(1) if match_jeu else None
+
+    enseignes = re.findall(r"[♣️♦️♠️♥️]", texte)
+
+    dernieres_stats = {
+        "jeu": num_jeu,
+        "enseignes": enseignes,
+        "texte": texte,
+    }
+    print(f"[STATS INCLUSES] Jeu #{num_jeu} intercepté !")
+
+  client.start()
+  client.run_until_disconnected()
 
 
 # ---------------------------------------------------------
@@ -71,7 +114,6 @@ def calculer_jeu_actuel_niger():
   heure = maintenant.hour
   minute = maintenant.minute
 
-  # Calcul du jeu actuel (Jeu 1 à 01h00 du matin)
   minutes_depuis_01h = ((heure - 1) % 24) * 60 + minute
   jeu_actuel = minutes_depuis_01h + 1
 
@@ -83,17 +125,12 @@ def boucle_envoi_automatique():
 
   while True:
     jeu_actuel, heure_niger = calculer_jeu_actuel_niger()
-
-    # Le jeu qui se déroule exactement 3 minutes après la minute actuelle
     jeu_dans_3min = ((jeu_actuel + 3 - 1) % 1440) + 1
 
-    # Vérification si ce jeu dans 3 minutes est divisible par 4
     if jeu_dans_3min % 4 == 0 and jeu_dans_3min != dernier_jeu_envoye:
-      # Calcul mathématique basé sur le jeu divisible par 4
       carte_complete = appliquer_strategie(jeu_dans_3min)
       enseigne_seule = extraire_enseigne_seule(carte_complete)
 
-      # Numéro du jeu affiché : le jeu qui précède (jeu_dans_3min - 1)
       jeu_affiche = jeu_dans_3min - 1 if jeu_dans_3min > 1 else 1440
 
       message = (
@@ -107,10 +144,6 @@ def boucle_envoi_automatique():
       try:
         if CHAT_ID_CIBLE != "VOTRE_CHAT_ID_ICI":
           bot.send_message(CHAT_ID_CIBLE, message, parse_mode="Markdown")
-          print(
-              f"[{heure_niger.strftime('%H:%M:%S')}] Prédiction envoyée pour"
-              f" le jeu {jeu_affiche}"
-          )
           dernier_jeu_envoye = jeu_dans_3min
       except Exception as e:
         print(f"Erreur d'envoi : {e}")
@@ -146,7 +179,7 @@ def traiter_message(message):
 
 @app.route("/")
 def home():
-  return "Bot Telegram actif (Heure Niger UTC+1 - Synchronisation exacte) !"
+  return "Bot Telegram actif avec scrapper de statistiques !"
 
 
 def run_flask():
@@ -155,12 +188,20 @@ def run_flask():
 
 
 if __name__ == "__main__":
+  # 1. Serveur Web Flask
   t_flask = threading.Thread(target=run_flask)
   t_flask.daemon = True
   t_flask.start()
 
+  # 2. Prédictions automatiques
   t_auto = threading.Thread(target=boucle_envoi_automatique)
   t_auto.daemon = True
   t_auto.start()
 
+  # 3. Écouteur de statistiques Telegram (Telethon)
+  t_stats = threading.Thread(target=lancer_scrapper)
+  t_stats.daemon = True
+  t_stats.start()
+
+  # 4. Bot Telegram
   bot.infinity_polling(timeout=10, long_polling_timeout=5)
