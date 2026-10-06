@@ -55,21 +55,29 @@ async def obtenir_historique_jeu(position):
     return None
 
 # ==========================================
-# SCRAPPER TELETHON
+# SCRAPPER TELETHON (SANS BUG DE DÉMARRAGE)
 # ==========================================
-@client.on(events.NewMessage(chats=SOURCE_CHANNEL))
+@client.on(events.NewMessage)
 async def handler_message(event):
     global dernieres_stats
-    if event.text:
-        cartes = extraire_cartes(event.text)
-        match_jeu = re.search(r'Jeu\s*#?(\d+)', event.text, re.IGNORECASE)
-        if match_jeu and cartes:
-            num_jeu = int(match_jeu.group(1))
-            dernieres_stats = {
-                'jeu': num_jeu,
-                'cartes': cartes
-            }
-            print(f"[SCRAPPER] Jeu #{num_jeu} détecté.", flush=True)
+    try:
+        chat = await event.get_chat()
+        chat_username = getattr(chat, 'username', None)
+        
+        # Vérifie si le message provient bien du canal source configuré
+        if chat_username and chat_username.lower() == SOURCE_CHANNEL.replace('@', '').lower():
+            if event.text:
+                cartes = extraire_cartes(event.text)
+                match_jeu = re.search(r'Jeu\s*#?(\d+)', event.text, re.IGNORECASE)
+                if match_jeu and cartes:
+                    num_jeu = int(match_jeu.group(1))
+                    dernieres_stats = {
+                        'jeu': num_jeu,
+                        'cartes': cartes
+                    }
+                    print(f"[SCRAPPER] Jeu #{num_jeu} détecté.", flush=True)
+    except Exception as e:
+        pass
 
 def lancer_scrapper():
     loop = asyncio.new_event_loop()
