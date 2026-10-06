@@ -11,7 +11,8 @@ from telethon import TelegramClient, events
 # ---------------------------------------------------------
 # CONFIGURATION
 # ---------------------------------------------------------
-TELEGRAM_TOKEN = "8434603595:AAG5hkLGyXppK805olMcOTGxo0p3E2ATJ80"
+TELEGRAM_TOKEN ="8434603595:AAEtNoqtct5sH-0erJFxkhUQAqrVRuzPXvk"
+
 CHAT_ID_CIBLE = "-1003983624932"
 
 # Identifiants API (my.telegram.org)
