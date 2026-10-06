@@ -8,11 +8,10 @@ import telebot
 import asyncio
 from telethon import TelegramClient, events
 
-# ---------------------------------------------------------
+# ------------------------------------------------------------------
 # CONFIGURATION
-# ---------------------------------------------------------
-TELEGRAM_TOKEN ="8434603595:AAEtNoqtct5sH-0erJFxkhUQAqrVRuzPXvk"
-
+# ------------------------------------------------------------------
+TELEGRAM_TOKEN = "8434603595:AAEtNoqtct5sH-0erJFxkhUQAqrVRuzPXvk"
 CHAT_ID_CIBLE = "-1003983624932"
 
 # Identifiants API (my.telegram.org)
@@ -23,135 +22,116 @@ CANAL_SOURCE = "jokerwcbnn11280"
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 app = Flask(__name__)
 
-SUITE_CHIFFRES = "80658175170943878571660636856403766975289505440883277824000000000000"
+SUITE_CHIFFRES = "80658175170943878571660636856403766975289505440883277824"
 
 # Stockage global des statistiques extraites du canal
 dernieres_stats = {}
 
-# ---------------------------------------------------------
+# ------------------------------------------------------------------
+# RECHERCHE D'HISTORIQUE (TELETHON)
+# ------------------------------------------------------------------
+async def obtenir_historique_jeu(numero_jeu, limite=5):
+    """
+    Recherche les 'limite' derniers résultats du jeu spécifié dans le canal.
+    """
+    query = f"#N{numero_jeu}"
+    messages_trouves = []
+    
+    async for message in client.iter_messages(CANAL_SOURCE, search=query, limit=limite):
+        if message.text:
+            messages_trouves.append(message.text)
+            
+    return messages_trouves
+
+# ------------------------------------------------------------------
 # ÉCOUTEUR DU CANAL STATISTIQUES (Telethon)
-# ---------------------------------------------------------
+# ------------------------------------------------------------------
+client = TelegramClient('session_stats', API_ID, API_HASH)
+
+@client.on(events.NewMessage(chats=CANAL_SOURCE))
+async def ecouter_canal(event):
+    global dernieres_stats
+    texte = event.message.text
+
+    match_jeu = re.search(r'#N(\d+)', texte)
+    num_jeu = match_jeu.group(1) if match_jeu else None
+
+    enseignes = re.findall(r'[♣️♦️♠️️♥️]', texte)
+
+    dernieres_stats = {
+        'jeu': num_jeu,
+        'enseignes': enseignes,
+        'texte': texte
+    }
+    print(f"[STATS INTERCEPTÉES] Jeu #{num_jeu} reçu depuis {CANAL_SOURCE}")
+
 def lancer_scrapper():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    
-    # Utilisation du fichier de session généré
-    client = TelegramClient('session_stats', API_ID, API_HASH)
-
-    @client.on(events.NewMessage(chats=CANAL_SOURCE))
-    async def ecouter_canal(event):
-        global dernieres_stats
-        texte = event.message.text
-
-        match_jeu = re.search(r'#N(\d+)', texte)
-        num_jeu = match_jeu.group(1) if match_jeu else None
-
-        enseignes = re.findall(r'[♣️♦️♠️♥️]', texte)
-
-        dernieres_stats = {
-            'jeu': num_jeu,
-            'enseignes': enseignes,
-            'texte': texte
-        }
-        print(f"[STATS INTERCEPTÉES] Jeu #{num_jeu} reçu depuis {CANAL_SOURCE} !")
-
     client.start()
     client.run_until_disconnected()
 
-# ---------------------------------------------------------
-# STRATÉGIE MATHÉMATIQUE (INTÉGRATING CANAL STATS)
-# ---------------------------------------------------------
-def determiner_carte_par_position(position):
-    enseignes = ["Pique ♠️", "Trèfle ♣️", "Carreau ♦️", "Cœur ♥️"]
-    index_reel = (position - 1) % len(SUITE_CHIFFRES)
-    chiffre = SUITE_CHIFFRES[index_reel]
-    
-    valeur = "10" if chiffre == '0' else chiffre
-    enseigne = enseignes[index_reel % 4]
-    
-    return f"{valeur} de {enseigne}", enseigne
-
-def appliquer_strategie(numero_jeu):
-    global dernieres_stats
-    
-    # Si des statistiques récents du canal source existent pour ajuster la prédiction
-    if dernieres_stats and dernieres_stats.get('enseignes'):
-        # Exemple d'utilisation des enseignes interceptées du canal source
-        enseignes_recientes = dernieres_stats['enseignes']
-        print(f"[LOG] Utilisation des stats du canal : {enseignes_recientes}")
-
-    chiffres = [int(c) for c in str(numero_jeu) if c != '0']
-    
-    cartes_detectees = []
-    couleurs_detectees = []
-    
-    for c in chiffres:
-        carte, couleur = determiner_carte_par_position(c)
-        cartes_detectees.append(carte)
-        couleurs_detectees.append(couleur)
-        
-    if len(set(cartes_detectees)) == 1:
-        return cartes_detectees[0]
-        
-    nb_couleurs_uniques = len(set(couleurs_detectees))
-    jeu_divise = numero_jeu // nb_couleurs_uniques
-    position_finale = ((jeu_divise - 1) % len(SUITE_CHIFFRES)) + 1
-    
-    carte_finale, _ = determiner_carte_par_position(position_finale)
-    return carte_finale
-
-def extraire_enseigne_seule(carte_complete):
-    if " de " in carte_complete:
-        return carte_complete.split(" de ")[1]
-    return carte_complete
-
-# ---------------------------------------------------------
-# CALCUL HEURE NIGER (UTC+1) ET ENVOI UNIQUE
-# ---------------------------------------------------------
-def calculer_jeu_actuel_niger():
-    tz_niger = timezone(timedelta(hours=1))
-    maintenant = datetime.now(tz_niger)
-    
-    heure = maintenant.hour
-    minute = maintenant.minute
-    
-    minutes_depuis_01h = ((heure - 1) % 24) * 60 + minute
-    jeu_actuel = minutes_depuis_01h + 1
-    
-    return jeu_actuel, maintenant
-
+# ------------------------------------------------------------------
+# BOUCLE D'ENVOI DES PRÉDICTIONS
+# ------------------------------------------------------------------
 def boucle_envoi_automatique():
-    dernier_jeu_envoye = None
-    
-    while True:
-        jeu_actuel, heure_niger = calculer_jeu_actuel_niger()
-        jeu_dans_3min = ((jeu_actuel + 3 - 1) % 1440) + 1
-        
-        # Envoi unique par intervalle
-        if jeu_dans_3min % 4 == 0 and jeu_dans_3min != dernier_jeu_envoye:
-            carte_complete = appliquer_strategie(jeu_dans_3min)
-            enseigne_seule = extraire_enseigne_seule(carte_complete)
-            
-            jeu_affiche = jeu_dans_3min - 1 if jeu_dans_3min > 1 else 1440
-            
-            message = (
-                f"🚀 **PRÉDICTION AUTOMATIQUE**\n"
-                f"🎮 **Jeu à venir :** {jeu_affiche}\n"
-                f"⏰ **Heure d'envoi :** {heure_niger.strftime('%H:%M')} (3 min avant)\n"
-                f"🎯 **Carte à jouer :** {enseigne_seule}"
-            )
-            
-            try:
-                bot.send_message(CHAT_ID_CIBLE, message, parse_mode="Markdown")
-                dernier_jeu_envoye = jeu_dans_3min
-            except Exception as e:
-                print(f"Erreur d'envoi : {e}")
-                
-        time.sleep(10)  # Pause augmentée à 10s pour éviter les vérifications trop rapides
+    deja_envoye = set()
 
-# ---------------------------------------------------------
-# SERVEUR FLASK & DEMARRAGE
-# ---------------------------------------------------------
+    while True:
+        try:
+            maintenant = datetime.now(timezone.utc) + timedelta(hours=1) # Fuseau horaire Niger (UTC+1)
+            minute_actuelle = maintenant.minute
+            seconde_actuelle = maintenant.second
+
+            # Synchronisation sur l'intervalle de 4 minutes
+            if minute_actuelle % 4 == 1 and seconde_actuelle < 5:
+                # Calcul de l'heure d'envoi théorique
+                heure_envoi_dt = maintenant - timedelta(seconds=seconde_actuelle)
+                
+                # Calcul du jeu à venir (+3 minutes de décalage)
+                heure_cible_dt = heure_envoi_dt + timedelta(minutes=3)
+                
+                identifiant_message = heure_envoi_dt.strftime("%H:%M")
+
+                if identifiant_message not in deja_envoye:
+                    m = heure_cible_dt.minute
+                    h = heure_cible_dt.hour
+                    num_jeu = (h * 60 + m) % 1000
+
+                    heure_envoi_str = heure_envoi_dt.strftime("%H:%M")
+
+                    # Exemple simple de sélection de carte
+                    index_chiffre = (h + m) % len(SUITE_CHIFFRES)
+                    valeur_chiffre = int(SUITE_CHIFFRES[index_chiffre])
+
+                    if valeur_chiffre % 2 == 0:
+                        carte_a_jouer = "Cœur ♥️"
+                    else:
+                        carte_a_jouer = "Trèfle ♣️"
+
+                    msg = (
+                        f"🚀 **PRÉDICTION AUTOMATIQUE**\n"
+                        f"🎮 Jeu à venir : {num_jeu}\n"
+                        f"⏰ Heure d'envoi : {heure_envoi_str} (3 min avant)\n"
+                        f"🎯 Carte à jouer : {carte_a_jouer}"
+                    )
+
+                    bot.send_message(CHAT_ID_CIBLE, msg, parse_mode="Markdown")
+                    print(f"[ENVOI UNIQUE REUSSI] {identifiant_message} -> Jeu {num_jeu}")
+
+                    deja_envoye.add(identifiant_message)
+                    
+                    if len(deja_envoye) > 100:
+                        deja_envoye.clear()
+
+            time.sleep(2)
+        except Exception as e:
+            print(f"Erreur dans la boucle d'envoi : {e}")
+            time.sleep(5)
+
+# ------------------------------------------------------------------
+# SERVEUR WEB FLASK (Pour garder Render actif)
+# ------------------------------------------------------------------
 @app.route('/')
 def home():
     return "Bot Oracle Baccarat actif !"
@@ -160,21 +140,24 @@ def run_flask():
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
 
+# ------------------------------------------------------------------
+# DÉMARRAGE DU PROGRAMME
+# ------------------------------------------------------------------
 if __name__ == "__main__":
     # 1. Serveur Web Flask (gardé en tâche de fond pour Render)
     t_flask = threading.Thread(target=run_flask)
     t_flask.daemon = True
     t_flask.start()
-    
+
     # 2. Scrapper Telethon (lit les stats du canal source en continu)
     t_stats = threading.Thread(target=lancer_scrapper)
     t_stats.daemon = True
     t_stats.start()
-    
+
     # 3. Boucle d'envoi unique des prédictions
     t_auto = threading.Thread(target=boucle_envoi_automatique)
     t_auto.daemon = True
     t_auto.start()
 
-    # 4. Polling Telegram (sans polling infini lourd)
+    # 4. Polling Telegram (TOUJOURS EN DERNIER)
     bot.infinity_polling(timeout=10, long_polling_timeout=5)
