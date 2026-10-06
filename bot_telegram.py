@@ -22,7 +22,14 @@ CANAL_SOURCE = "jokerwcbnn11280"
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 app = Flask(__name__)
 
-SUITE_CHIFFRES = "80658175170943878571660636856403766975289505440883277824"
+# Séquence 52! et ordre des enseignes (Pique, Trèfle, Carreau, Cœur)
+SEQUENCE_52 = "861376246795151132650663323124341032236145510480515016240000000000"
+
+# Cartes ordonnées selon la disposition (Pique ♠️, Trèfle ♣️, Carreau ♦️, Cœur ♥️)
+VALEURS_CARTES = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K']
+ENSEIGNES_ORDRE = ['♠️️', '♣️', '♦️', '♥️']
+
+DISPOSITION_52_CARTES = [f"{v}{e}" for e in ENSEIGNES_ORDRE for v in VALEURS_CARTES]
 
 # Stockage global des statistiques extraites du canal
 dernieres_stats = {}
@@ -30,18 +37,15 @@ dernieres_stats = {}
 # ------------------------------------------------------------------
 # RECHERCHE D'HISTORIQUE (TELETHON)
 # ------------------------------------------------------------------
-async def obtenir_historique_jeu(numero_jeu, limite=5):
+async def obtenir_historique_jeu(numero_jeu, limite=1):
     """
-    Recherche les 'limite' derniers résultats du jeu spécifié dans le canal.
+    Recherche le résultat d'un jeu précis dans le canal.
     """
-    query = f"#N{numero_jeu}"
-    messages_trouves = []
-    
+    query = f"#N{numero_jeu}."
     async for message in client.iter_messages(CANAL_SOURCE, search=query, limit=limite):
         if message.text:
-            messages_trouves.append(message.text)
-            
-    return messages_trouves
+            return message.text
+    return None
 
 # ------------------------------------------------------------------
 # ÉCOUTEUR DU CANAL STATISTIQUES (Telethon)
@@ -54,16 +58,18 @@ async def ecouter_canal(event):
     texte = event.message.text
 
     match_jeu = re.search(r'#N(\d+)', texte)
-    num_jeu = match_jeu.group(1) if match_jeu else None
+    num_jeu = int(match_jeu.group(1)) if match_jeu else None
 
-    enseignes = re.findall(r'[♣️♦️♠️️♥️]', texte)
+    # Extraction des cartes entre parenthèses
+    cartes_trouvees = re.findall(r'(\d+|[AJQK])([♣️♦️♠♥️])', texte)
 
-    dernieres_stats = {
-        'jeu': num_jeu,
-        'enseignes': enseignes,
-        'texte': texte
-    }
-    print(f"[STATS INTERCEPTÉES] Jeu #{num_jeu} reçu depuis {CANAL_SOURCE}")
+    if num_jeu:
+        dernieres_stats = {
+            'jeu': num_jeu,
+            'cartes': cartes_trouvees,
+            'texte': texte
+        }
+        print(f"[STATS INTERCEPTÉES] Jeu #{num_jeu} reçu.")
 
 def lancer_scrapper():
     loop = asyncio.new_event_loop()
@@ -79,52 +85,53 @@ def boucle_envoi_automatique():
 
     while True:
         try:
-            maintenant = datetime.now(timezone.utc) + timedelta(hours=1) # Fuseau horaire Niger (UTC+1)
-            minute_actuelle = maintenant.minute
-            seconde_actuelle = maintenant.second
+            if dernieres_stats and 'jeu' in dernieres_stats:
+                num_jeu_actuel = dernieres_stats['jeu']
 
-            # Synchronisation sur l'intervalle de 4 minutes
-            if minute_actuelle % 4 == 1 and seconde_actuelle < 5:
-                # Calcul de l'heure d'envoi théorique
-                heure_envoi_dt = maintenant - timedelta(seconds=seconde_actuelle)
-                
-                # Calcul du jeu à venir (+3 minutes de décalage)
-                heure_cible_dt = heure_envoi_dt + timedelta(minutes=3)
-                
-                identifiant_message = heure_envoi_dt.strftime("%H:%M")
-
-                if identifiant_message not in deja_envoye:
-                    m = heure_cible_dt.minute
-                    h = heure_cible_dt.hour
-                    num_jeu = (h * 60 + m) % 1000
-
-                    heure_envoi_str = heure_envoi_dt.strftime("%H:%M")
-
-                    # Exemple simple de sélection de carte
-                    index_chiffre = (h + m) % len(SUITE_CHIFFRES)
-                    valeur_chiffre = int(SUITE_CHIFFRES[index_chiffre])
-
-                    if valeur_chiffre % 2 == 0:
-                        carte_a_jouer = "Cœur ♥️"
-                    else:
-                        carte_a_jouer = "Trèfle ♣️"
-
-                    msg = (
-                        f"🚀 **PRÉDICTION AUTOMATIQUE**\n"
-                        f"🎮 Jeu à venir : {num_jeu}\n"
-                        f"⏰ Heure d'envoi : {heure_envoi_str} (3 min avant)\n"
-                        f"🎯 Carte à jouer : {carte_a_jouer}"
-                    )
-
-                    bot.send_message(CHAT_ID_CIBLE, msg, parse_mode="Markdown")
-                    print(f"[ENVOI UNIQUE REUSSI] {identifiant_message} -> Jeu {num_jeu}")
-
-                    deja_envoye.add(identifiant_message)
+                # Condition : Jeu divisible par 4
+                if num_jeu_actuel % 4 == 0 and num_jeu_actuel not in deja_envoye:
+                    deja_envoye.add(num_jeu_actuel)
                     
-                    if len(deja_envoye) > 100:
-                        deja_envoye.clear()
+                    cartes = dernieres_stats.get('cartes', [])
+                    if cartes:
+                        # 1. Première carte du jeu divisible par 4
+                        val_carte, enseigne_carte = cartes[0]
+                        premiere_carte_str = f"{val_carte}{enseigne_carte}"
 
-            time.sleep(2)
+                        # 2. Recherche de sa position dans la disposition
+                        if premiere_carte_str in DISPOSITION_52_CARTES:
+                            position = DISPOSITION_52_CARTES.index(premiere_carte_str) + 1
+                        else:
+                            position = 1
+
+                        # 3. Recherche du jeu historique correspondant à cette position
+                        texte_jeu_historique = asyncio.run_coroutine_threadsafe(
+                            obtenir_historique_jeu(position),
+                            client.loop
+                        ).result(timeout=10)
+
+                        carte_a_jouer = "Non détectée"
+                        if texte_jeu_historique:
+                            cartes_hist = re.findall(r'(\d+|[AJQK])([♣️♦️♠♥️])', texte_jeu_historique)
+                            if cartes_hist:
+                                val_h, ens_h = cartes_hist[0]
+                                carte_a_jouer = f"{val_h}{ens_h}"
+
+                        # 4. Jeu cible (+3)
+                        jeu_cible = num_jeu_actuel + 3
+
+                        msg = (
+                            f"🚀 **PRÉDICTION BACCARAT**\n\n"
+                            f"📊 Jeu Déclencheur : #{num_jeu_actuel}\n"
+                            f"🃏 Carte d'origine : {premiere_carte_str} (Position #{position})\n"
+                            f"🔍 Carte issue du Jeu #{position} : {carte_a_jouer}\n\n"
+                            f"🎯 **À jouer au Jeu #{jeu_cible} : {carte_a_jouer}**"
+                        )
+
+                        bot.send_message(CHAT_ID_CIBLE, msg, parse_mode="Markdown")
+                        print(f"[PRÉDICTION ENVOYÉE] Jeu {num_jeu_actuel} -> Jeu {jeu_cible}")
+
+            time.sleep(3)
         except Exception as e:
             print(f"Erreur dans la boucle d'envoi : {e}")
             time.sleep(5)
@@ -144,20 +151,16 @@ def run_flask():
 # DÉMARRAGE DU PROGRAMME
 # ------------------------------------------------------------------
 if __name__ == "__main__":
-    # 1. Serveur Web Flask (gardé en tâche de fond pour Render)
     t_flask = threading.Thread(target=run_flask)
     t_flask.daemon = True
     t_flask.start()
 
-    # 2. Scrapper Telethon (lit les stats du canal source en continu)
     t_stats = threading.Thread(target=lancer_scrapper)
     t_stats.daemon = True
     t_stats.start()
 
-    # 3. Boucle d'envoi unique des prédictions
     t_auto = threading.Thread(target=boucle_envoi_automatique)
     t_auto.daemon = True
     t_auto.start()
 
-    # 4. Polling Telegram (TOUJOURS EN DERNIER)
     bot.infinity_polling(timeout=10, long_polling_timeout=5)
