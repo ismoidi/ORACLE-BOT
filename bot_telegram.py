@@ -18,11 +18,11 @@ BOT_TOKEN = "8434603595:AAEtNoqtct5sH-0erJFxkhUQAqrVRuzPXvk"
 # Variable d'environnement pour la session Telethon
 STRING_SESSION_KEY = os.environ.get("TELEGRAM_SESSION", "")
 
-# ⚠️ REMPLACEZ PAR VOS VRAIS CANAUX TELEGRAM ⚠️
-SOURCE_CHANNEL = "@VOTRE_CANAL_SOURCE_ICI"  # Ex: "@nom_du_canal" ou ID -100xxxxxxxxxx
-CHAT_ID_CIBLE = -1001234567890             # ID de votre canal privé de réception
+# Identifiants de vos canaux configurés
+SOURCE_CHANNEL = "@jokerwcbnn11280"
+CHAT_ID_CIBLE = -1003983624932
 
-# Disposition des 52 cartes
+# Disposition standard des 52 cartes
 DISPOSITION_52_CARTES = [
     "A♠", "2♠", "3♠", "4♠", "5♠", "6♠", "7♠", "8♠", "9♠", "10♠", "J♠", "Q♠", "K♠",
     "A♥", "2♥", "3♥", "4♥", "5♥", "6♥", "7♥", "8♥", "9♥", "10♥", "J♥", "Q♥", "K♥",
@@ -78,10 +78,10 @@ def lancer_scrapper():
     try:
         print("[TELETHON] Démarrage du client...", flush=True)
         client.start()
-        print("[TELETHON] Connexion établie et écoute active !", flush=True)
+        print("[TELETHON] Connexion établie et écoute active sur @jokerwcbnn11280 !", flush=True)
         client.run_until_disconnected()
     except Exception as e:
-        print(f"[TELETHON ERREUR] Vérifiez le nom du canal SOURCE_CHANNEL. Détails: {e}", flush=True)
+        print(f"[TELETHON ERREUR] {e}", flush=True)
 
 # ==========================================
 # BOUCLE D'ENVOI AUTOMATIQUE
@@ -120,4 +120,11 @@ def boucle_envoi_automatique():
                             cartes_hist = extraire_cartes(texte_jeu_historique)
                             if cartes_hist:
                                 val_h, ens_h = cartes_hist[0]
-                                ens_h_clean = '♠' if '♠
+                                ens_h_clean = '♠' if '♠' in ens_h else '♥' if '♥' in ens_h else '♦' if '♦' in ens_h else '♣'
+                                carte_a_jouer = f"{val_h}{ens_h_clean}"
+                        
+                        jeu_cible = num_jeu_actuel + 3
+                        
+                        msg = (
+                            f"🚀 **PRÉDICTION BACCARAT**\n\n"
+                            f"
